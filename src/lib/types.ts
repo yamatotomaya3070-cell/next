@@ -197,6 +197,22 @@ export interface UserAptitude {
   recorded_at: string;
 }
 
+/** 実案件ナレッジ（supabase/migrations/00005_case_knowledge.sql と対応） */
+export interface CaseKnowledge {
+  id: string;
+  title: string;
+  genre: string | null;
+  skill_tags: string[];
+  difficulty: number | null;
+  caution_points: string[];
+  masked_case_text: string;
+  masking_report: { removedItems: string[]; riskNotes: string[] } | null;
+  source: string;
+  converted_task_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface QaLog {
   id: string;
   user_id: string;

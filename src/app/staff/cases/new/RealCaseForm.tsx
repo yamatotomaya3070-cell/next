@@ -163,6 +163,19 @@ export function RealCaseForm() {
             </div>
             <p className="mt-2 text-ink-soft">{preview.summary}</p>
 
+            {preview.cautionPoints.length > 0 && (
+              <div className="mt-3 rounded-xl bg-teal-soft p-4 text-sm">
+                <p className="font-bold text-teal">
+                  この案件の注意事項（ナレッジとして自動蓄積されます）
+                </p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-ink">
+                  {preview.cautionPoints.map((point, i) => (
+                    <li key={i}>{point}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="mt-4 space-y-3">
               <details open className="rounded-xl border border-line p-4">
                 <summary className="cursor-pointer font-bold">模擬依頼書</summary>

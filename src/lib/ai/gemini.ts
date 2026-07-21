@@ -58,6 +58,7 @@ interface MaskedCaseStructure {
   genre: string;
   skillTags: string[];
   difficulty: number;
+  cautionPoints: string[];
   maskingReport: MaskingReport;
 }
 
@@ -86,7 +87,8 @@ ${rawCaseText}
 2. genre: 案件ジャンル。'vlog' | 'ad' | 'subtitle' | 'clip' | 'interview' | 'other' のいずれか
 3. skillTags: 必要スキル。'cut','telop','bgm','volume','image','color','duration','export','revision','brief' から該当するもの
 4. difficulty: 未経験者から見た難易度 1〜5
-5. maskingReport: { "removedItems": ["何をどう置換/削除したか"], "riskNotes": ["職員が確認すべき残存リスク"] }
+5. cautionPoints: この案件で特に注意すべき点（依頼者のこだわり・修正になりやすい点・納品条件の落とし穴など、3〜6個。固有名詞を含めない）
+6. maskingReport: { "removedItems": ["何をどう置換/削除したか"], "riskNotes": ["職員が確認すべき残存リスク"] }
 
 必ず有効なJSONのみを出力する。
 
@@ -96,6 +98,7 @@ JSONスキーマ:
   "genre": "string",
   "skillTags": ["string"],
   "difficulty": number,
+  "cautionPoints": ["string"],
   "maskingReport": { "removedItems": ["string"], "riskNotes": ["string"] }
 }`;
 
@@ -104,6 +107,7 @@ JSONスキーマ:
   if (!parsed.maskedCaseText || !parsed.maskingReport) {
     throw new Error("Gemini の匿名化応答が期待した形式ではありません");
   }
+  if (!Array.isArray(parsed.cautionPoints)) parsed.cautionPoints = [];
   return parsed;
 }
 
@@ -111,13 +115,20 @@ export const geminiProvider: AiProvider = {
   name: "gemini",
 
   async generateTask(input: GenerateTaskInput): Promise<GeneratedTask> {
+    const knowledgeBlock = input.knowledgeContext
+      ? `
+これまでに取り込んだ実案件のナレッジ（参考）:
+${input.knowledgeContext}
+上記の実案件の傾向（依頼の書き方・要求水準・注意されやすい点）を模擬依頼書とチェックリストに反映し、より本番に近い練習案件にしてください。`
+      : "";
+
     const prompt = `あなたは動画編集の練習教材を作る講師です。以下の条件で練習課題一式を生成してください。
 
 条件:
 - テーマ: ${input.theme}
 - 難易度: ${input.difficulty} (1=いちばん簡単, 5=実務レベル)
 - 練習するスキル: ${input.skillTags.join(", ")}
-${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}
+${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${knowledgeBlock}
 
 生成するもの:
 1. requestDoc: クラウドワークス風の模擬依頼書（Markdown。依頼の挨拶、やってほしいこと、完成尺、納品形式、ファイル名規則を含む）
@@ -208,6 +219,7 @@ JSONスキーマ:
       genre: masked.genre,
       skillTags: masked.skillTags,
       difficulty,
+      cautionPoints: masked.cautionPoints,
       maskedCaseText: masked.maskedCaseText,
       maskingReport: masked.maskingReport,
     };

@@ -6,6 +6,7 @@ export interface GenerateTaskInput {
   difficulty: number; // 1-5
   skillTags: string[]; // 例: ['telop', 'script']
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
+  knowledgeContext?: string; // 蓄積済み実案件ナレッジの要約（依頼傾向・注意事項）
 }
 
 /** 練習教材の生成結果 */
@@ -39,6 +40,7 @@ export interface GeneratedSimilarCase extends GeneratedTask {
   genre: string; // 例: 'vlog' | 'ad' | 'subtitle' | 'clip'
   skillTags: string[]; // 推定された練習スキル
   difficulty: number; // 推定または指定された難易度 1-5
+  cautionPoints: string[]; // 実案件から抽出した注意事項（ナレッジとして蓄積）
   revisionNote: string; // 修正指示文（初回納品後に届く想定のメッセージ）
   sampleDescription: string; // 完成見本の説明（何がどうなっていれば正解か）
   maskedCaseText: string; // 匿名化済みの実案件要約（real_cases.masked_content / RAG格納用）

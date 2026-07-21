@@ -152,6 +152,11 @@ export const mockProvider: AiProvider = {
         ...(skillTags.includes("telop") ? ["- 台本どおりのテロップが読みやすい位置に入っている"] : []),
         "- 指定のファイル名・形式（MP4）で書き出されている",
       ].join("\n"),
+      cautionPoints: [
+        "完成尺の指定を守る",
+        "指定されたファイル名の規則で納品する",
+        "テロップの誤字・脱字がないか確認する",
+      ],
       maskedCaseText: masked,
       maskingReport: {
         removedItems,

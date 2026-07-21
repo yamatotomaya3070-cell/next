@@ -69,6 +69,7 @@ function parsePayload(json: string): GeneratedSimilarCase | null {
   } catch {
     return null;
   }
+  if (!isStringArray(p.cautionPoints)) p = { ...p, cautionPoints: [] };
   const valid =
     typeof p.title === "string" && p.title.length > 0 &&
     typeof p.summary === "string" &&
@@ -185,24 +186,28 @@ export async function saveSimilarCase(
   const { error: mErr } = await supabase.from("task_materials").insert(materials);
   if (mErr) return { error: "教材の保存に失敗しました。" };
 
-  // 匿名化済み案件をナレッジベースへ（将来のRAG移行元。失敗しても課題保存は成立）
-  const { error: kErr } = await supabase.from("knowledge_base").insert({
-    title: `実案件由来: ${generated.title}`,
-    source_summary: generated.maskedCaseText,
-    content: {
-      genre: generated.genre,
-      skill_tags: generated.skillTags,
-      difficulty: generated.difficulty,
-      masking_report: generated.maskingReport,
-    },
-    is_anonymized: true,
-    consent_confirmed: false,
+  // 匿名化済み案件をナレッジへ自動蓄積（模擬案件生成時の参考情報になる。
+  // テーブル未適用などで失敗しても課題保存は成立させる）
+  const { error: kErr } = await supabase.from("case_knowledge").insert({
+    title: `実案件由来: ${generated.title.replace(/^【練習】/, "")}`,
+    genre: generated.genre,
+    skill_tags: generated.skillTags,
+    difficulty: generated.difficulty,
+    caution_points: generated.cautionPoints,
+    masked_case_text: generated.maskedCaseText,
+    masking_report: generated.maskingReport,
+    source: "real_case",
+    converted_task_id: task.id,
     created_by: staff.id,
   });
   if (kErr) {
-    console.error("ナレッジベースへの保存に失敗（課題は保存済み）:", kErr);
+    console.error(
+      "実案件ナレッジの保存に失敗（課題は保存済み）。migration 00005_case_knowledge.sql が適用済みか確認してください:",
+      kErr,
+    );
   }
 
   revalidatePath("/staff");
+  revalidatePath("/staff/cases/new");
   redirect(`/staff/tasks/${task.id}`);
 }

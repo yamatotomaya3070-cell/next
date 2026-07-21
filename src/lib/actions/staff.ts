@@ -20,9 +20,42 @@ export async function createTaskWithAi(
   const skillTags = formData.getAll("skill_tags").map(String);
   const traineeNote = String(formData.get("trainee_note") ?? "").trim();
 
-  if (!theme) return { error: "課題のテーマを入力してください。" };
+  if (!theme) return { error: "案件のテーマを入力してください。" };
   if (skillTags.length === 0) {
     return { error: "練習するスキルを1つ以上選んでください。" };
+  }
+
+  // 蓄積済みの実案件ナレッジを参考情報としてプロンプトに注入する。
+  // 選択スキルと重なるものを優先し、テーブル未適用・0件でも生成は続行する。
+  let knowledgeContext: string | undefined;
+  try {
+    const { data: matched } = await supabase
+      .from("case_knowledge")
+      .select("title, genre, difficulty, caution_points, masked_case_text")
+      .overlaps("skill_tags", skillTags)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    let rows = matched ?? [];
+    if (rows.length === 0) {
+      const { data: recent } = await supabase
+        .from("case_knowledge")
+        .select("title, genre, difficulty, caution_points, masked_case_text")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      rows = recent ?? [];
+    }
+    if (rows.length > 0) {
+      knowledgeContext = rows
+        .map(
+          (k, i) =>
+            `${i + 1}. [${k.genre ?? "ジャンル不明"} / 難易度${k.difficulty ?? "?"}] ${k.title}\n` +
+            `   概要: ${String(k.masked_case_text ?? "").slice(0, 300)}\n` +
+            `   注意事項: ${(k.caution_points ?? []).join(" / ") || "（記録なし）"}`,
+        )
+        .join("\n");
+    }
+  } catch (err) {
+    console.error("実案件ナレッジの取得に失敗（ナレッジなしで生成を続行）:", err);
   }
 
   let generated;
@@ -32,6 +65,7 @@ export async function createTaskWithAi(
       difficulty,
       skillTags,
       traineeNote: traineeNote || undefined,
+      knowledgeContext,
     });
   } catch (err) {
     console.error("教材生成に失敗:", err);

@@ -1,65 +1,44 @@
-import Image from "next/image";
+import { redirect } from "next/navigation";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+/** 環境未設定ならセットアップ案内、設定済みならログインへ */
+export default function RootPage() {
+  if (hasSupabaseEnv()) {
+    redirect("/login");
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+    <main className="mx-auto w-full max-w-2xl px-6 py-16">
+      <h1 className="text-3xl font-bold">🛠 初期セットアップが必要です</h1>
+      <p className="mt-4 text-lg text-slate-600">
+        Supabase の接続情報が設定されていません。以下の手順でセットアップしてください。
+      </p>
+      <ol className="mt-8 list-decimal space-y-4 pl-6 text-slate-800">
+        <li>
           <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="https://supabase.com/dashboard"
+            className="font-bold text-sky-700 underline"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+            Supabase
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          で新しいプロジェクトを作成する
+        </li>
+        <li>
+          SQL Editor で <code className="rounded bg-slate-100 px-1">supabase/migrations/</code>{" "}
+          の SQL を番号順に実行する
+        </li>
+        <li>
+          <code className="rounded bg-slate-100 px-1">.env.example</code> を{" "}
+          <code className="rounded bg-slate-100 px-1">.env.local</code>{" "}
+          にコピーし、プロジェクトの URL と anon キーを設定する
+        </li>
+        <li>
+          Authentication → Users でテストユーザー（職員・利用者）を作成する（詳細は README 参照）
+        </li>
+        <li>開発サーバーを再起動する</li>
+      </ol>
+    </main>
   );
 }

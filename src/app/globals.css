@@ -1,26 +1,66 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * デザイントークン（つなぐワークス UI基盤）
+ * 学習画面ではなく「安心して仕事を進められる動画編集ワークスペース」
+ */
+@theme {
+  /* ブランドカラー */
+  --color-primary: #1677e8;
+  --color-primary-dark: #1264c7;
+  --color-primary-soft: #e8f1fd;
+  --color-teal: #16b8a6;
+  --color-teal-soft: #e6f7f5;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* サーフェス */
+  --color-page: #f5f8fc;
+  --color-surface: #ffffff;
+  --color-line: #e4eaf2;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* テキスト */
+  --color-ink: #182230;
+  --color-ink-soft: #667085;
+
+  /* セマンティックカラー */
+  --color-success: #12a66a;
+  --color-success-soft: #e7f6ef;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fdf3e2;
+  --color-danger: #ef4444;
+  --color-danger-soft: #fdeceb;
+  --color-accent-purple: #8b5cf6;
+  --color-accent-purple-soft: #f1ebfd;
+
+  /* フォント（日本語が読みやすいスタック） */
+  --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+    "Yu Gothic UI", Meiryo, system-ui, -apple-system, sans-serif;
+
+  /* シャドウ（非常に薄く） */
+  --shadow-card: 0 1px 2px rgb(24 34 48 / 0.04), 0 2px 8px rgb(24 34 48 / 0.04);
+  --shadow-card-hover: 0 2px 4px rgb(24 34 48 / 0.06), 0 8px 20px rgb(24 34 48 / 0.08);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+/* キーボード操作時のフォーカスを常に明確に */
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 長い日本語の不自然な折り返しを防ぐ */
+h1,
+h2,
+h3,
+th,
+button {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }

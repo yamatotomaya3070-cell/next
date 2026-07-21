@@ -1,0 +1,62 @@
+{
+  "title": "パン屋さんの店舗紹介（練習素材）",
+  "scenario": "パン屋さんの店舗紹介を想定した1人語りの素材動画です。つなぎ言葉・言い間違い・沈黙・失敗テイクが混ざっており、カット編集の練習に使います。",
+  "keepDurationHint": 30,
+  "segments": [
+    {
+      "text": "こんにちは。今日は私たちのお店を紹介します。",
+      "kind": "keep",
+      "cutReason": null,
+      "silenceSeconds": null
+    },
+    {
+      "text": "えーっと、あのー。",
+      "kind": "cut",
+      "cutReason": "filler",
+      "silenceSeconds": null
+    },
+    {
+      "text": "このお店は駅から歩いて5分の場所にあります。",
+      "kind": "keep",
+      "cutReason": null,
+      "silenceSeconds": null
+    },
+    {
+      "text": "営業時間は朝9時から、あ、すみません、間違えました。",
+      "kind": "cut",
+      "cutReason": "mistake",
+      "silenceSeconds": null
+    },
+    {
+      "text": "営業時間は朝8時から夕方6時までです。",
+      "kind": "keep",
+      "cutReason": null,
+      "silenceSeconds": null
+    },
+    {
+      "text": "",
+      "kind": "cut",
+      "cutReason": "silence",
+      "silenceSeconds": 3
+    },
+    {
+      "text": "おすすめは焼きたてのパンと、季節のスープです。",
+      "kind": "keep",
+      "cutReason": null,
+      "silenceSeconds": null
+    },
+    {
+      "text": "おすすめは焼きたての、えっと、ちょっと待ってください。",
+      "kind": "cut",
+      "cutReason": "retake",
+      "silenceSeconds": null
+    },
+    {
+      "text": "ぜひ一度、遊びに来てください。お待ちしています。",
+      "kind": "keep",
+      "cutReason": null,
+      "silenceSeconds": null
+    }
+  ],
+  "provider": "mock"
+}

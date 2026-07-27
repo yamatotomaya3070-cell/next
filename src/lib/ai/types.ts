@@ -5,6 +5,7 @@ export interface GenerateTaskInput {
   theme: string; // 例: 「料理動画にテロップを入れる」
   difficulty: number; // 1-5
   skillTags: string[]; // 例: ['telop', 'script']
+  genre?: string; // 動画ジャンル（例: 'YouTube解説', 'TikTokショート', '商品紹介'）。未指定ならテーマから推定
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
   knowledgeContext?: string; // 蓄積済み実案件ナレッジの要約（依頼傾向・注意事項）
 }

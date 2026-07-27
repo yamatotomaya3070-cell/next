@@ -10,10 +10,48 @@ import type {
   GradeSubmissionInput,
   MaskingReport,
 } from "./types";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-async function callGemini(prompt: string, temperature = 0.7): Promise<string> {
+/** AI利用ログの用途区分（コスト集計の内訳に使う） */
+type AiUsageKind = "task" | "similar_case" | "mask" | "source_script" | "grade";
+
+/**
+ * Gemini のトークン使用量を ai_usage_logs へ記録する（コスト可視化用）。
+ * サービスロールでの書き込み。テーブル未適用・env未設定でも生成をブロックしない
+ * よう、失敗はすべて握りつぶす。migration 00009_ai_usage_logs.sql が対応。
+ */
+async function logAiUsage(
+  model: string,
+  kind: AiUsageKind,
+  usageMetadata: unknown,
+): Promise<void> {
+  try {
+    const u = (usageMetadata ?? {}) as {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+    };
+    const admin = createAdminClient();
+    await admin.from("ai_usage_logs").insert({
+      provider: "gemini",
+      model,
+      kind,
+      prompt_tokens: u.promptTokenCount ?? null,
+      output_tokens: u.candidatesTokenCount ?? null,
+      total_tokens: u.totalTokenCount ?? null,
+    });
+  } catch (err) {
+    console.error("AI利用ログの記録に失敗（生成は継続）:", err);
+  }
+}
+
+async function callGemini(
+  prompt: string,
+  kind: AiUsageKind,
+  temperature = 0.7,
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY が未設定です");
   const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
@@ -41,6 +79,7 @@ async function callGemini(prompt: string, temperature = 0.7): Promise<string> {
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Gemini API から空の応答が返されました");
+  await logAiUsage(model, kind, data?.usageMetadata);
   return text;
 }
 
@@ -51,6 +90,47 @@ const COMMON_STYLE = `
 - 漢字には必ず「漢字《かんじ》」の形式でふりがなを付ける（熟語単位）。
 - 否定的・威圧的な表現は使わない。励ます表現を使う。
 - 必ず有効なJSONのみを出力する。`;
+
+/**
+ * requestDoc（依頼書＝依頼文＋案件仕様書）の書き方ガイド。
+ * クラウドワークスの実案件と同等の情報量・具体性を担保し、ジャンルと難易度で内容を変える。
+ * 仕様書を独立テーブルにせず requestDoc(Markdown) に構造化して埋め込むことで、
+ * 既存の教材表示（request_doc をMarkdown表示）のまま質を上げる。
+ */
+const REQUEST_DOC_GUIDANCE = `
+requestDoc は「実際のクライアントから届いた依頼文」と「案件仕様書」を1つにまとめた Markdown にする。
+次の見出し構成を必ず守り、各項目を具体的に埋める（空欄や「特になし」で済ませない）:
+
+# 依頼文
+クライアントからの自然なメッセージ。あいさつ→作ってほしい動画→目的→想定視聴者→掲載する媒体→
+雰囲気の希望→参考のイメージ→納期感、の流れ。実在の企業名・商品名・URLは出さず「あるお店」「ある商品」等にする。
+
+# 案件仕様書
+## 基本情報
+- 目的 / ターゲット視聴者 / 掲載媒体（YouTube・TikTok・店頭など） / ジャンル
+## 動画仕様
+- 完成尺 / 画面比率（16:9・9:16など） / 解像度 / ファイル形式（MP4 H.264 など） / ファイル名ルール
+## 編集ルール
+- テロップ（色・位置・動きの有無・強調の仕方） / BGM（雰囲気・音量） / 効果音 /
+  カットとテンポ / 必要なら Bロール・画像・図解の入れ方
+## 参考
+- 参考動画・参考イメージの説明（URLは書かず、雰囲気や構成を言葉で伝える）
+## 納品
+- 納期 / 提出方法
+## 要確認事項
+- 依頼に書かれておらず曖昧で、本来クライアントに確認すべき点を2〜4個。
+  （就労者が「わからないことを相談する」練習になる。ここは空にしない）
+
+ジャンルに合った現実的な仕様にする（例: TikTok/Reelsは9:16・15〜60秒・テンポ速め・大きめテロップ、
+YouTube解説は16:9・数分・テロップ多め・Bロールあり、商品紹介は短尺・訴求重視・ロゴやキャッチコピー）。
+難易度が低いほど仕様は具体的で親切に、曖昧さを少なくする。難易度が高いほど指示を簡素にし、
+要確認事項を増やし、就労者に構成や表現を判断させる余地を残す。`;
+
+/** manualSteps（手順書）の書き方ガイド。ジャンルの実際の作業順に沿わせる。 */
+const MANUAL_GUIDANCE = `
+manualSteps は上の仕様書とジャンルに沿った実際の編集作業順にする:
+素材の確認 → 全体の構成を考える → カット → テロップ → BGM・効果音 → 見直し → 書き出し・提出。
+1ステップ=1操作で細かく分ける。難易度が高いほど各ステップの指示は簡素にし、判断を就労者に任せる。`;
 
 /** ステップ1の出力: 実案件の構造化 + 匿名化 */
 interface MaskedCaseStructure {
@@ -102,7 +182,7 @@ JSONスキーマ:
   "maskingReport": { "removedItems": ["string"], "riskNotes": ["string"] }
 }`;
 
-  const json = await callGemini(prompt, 0.2);
+  const json = await callGemini(prompt, "mask", 0.2);
   const parsed = JSON.parse(json) as MaskedCaseStructure;
   if (!parsed.maskedCaseText || !parsed.maskingReport) {
     throw new Error("Gemini の匿名化応答が期待した形式ではありません");
@@ -122,19 +202,22 @@ ${input.knowledgeContext}
 上記の実案件の傾向（依頼の書き方・要求水準・注意されやすい点）を模擬依頼書とチェックリストに反映し、より本番に近い練習案件にしてください。`
       : "";
 
-    const prompt = `あなたは動画編集の練習教材を作る講師です。以下の条件で練習課題一式を生成してください。
+    const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。実案件と同等の情報量・具体性をもつ練習課題一式を生成してください。
 
 条件:
 - テーマ: ${input.theme}
+- ジャンル: ${input.genre ?? "テーマから最も自然なジャンルを推定する"}
 - 難易度: ${input.difficulty} (1=いちばん簡単, 5=実務レベル)
 - 練習するスキル: ${input.skillTags.join(", ")}
 ${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${knowledgeBlock}
 
 生成するもの:
-1. requestDoc: クラウドワークス風の模擬依頼書（Markdown。依頼の挨拶、やってほしいこと、完成尺、納品形式、ファイル名規則を含む）
-2. manualSteps: 操作手順書。1ステップ=1操作で細かく分割（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
+1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（Markdown）
+${REQUEST_DOC_GUIDANCE}
+2. manualSteps: 操作手順書（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
+${MANUAL_GUIDANCE}
 3. script: 字幕・テロップ用の台本（テロップ課題でなければ null）
-4. selfCheckItems: 納品前セルフチェック項目（4〜6個、ふりがな不要）
+4. selfCheckItems: 納品前セルフチェック項目（4〜6個、ふりがな不要）。仕様書の指定（尺・比率・形式・テロップ・BGM等）と対応させる
 ${COMMON_STYLE}
 
 JSONスキーマ:
@@ -149,7 +232,7 @@ JSONスキーマ:
   "selfCheckItems": ["string"]
 }`;
 
-    const json = await callGemini(prompt);
+    const json = await callGemini(prompt, "task");
     const parsed = JSON.parse(json) as GeneratedTask;
     if (!parsed.title || !parsed.requestDoc || !Array.isArray(parsed.manualSteps)) {
       throw new Error("Gemini の応答が期待した形式ではありません");
@@ -172,7 +255,7 @@ JSONスキーマ:
         : "";
 
     // ステップ2: 模擬案件一式の生成
-    const prompt = `あなたは動画編集の練習教材を作る講師です。以下の「匿名化済みの実案件」に似た練習案件一式を生成してください。実案件そのもののコピーではなく、同じスキル・同じ要求水準の「類似案件」を新しく作ります。
+    const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。以下の「匿名化済みの実案件」に似た練習案件一式を、実案件と同等の情報量・具体性で生成してください。実案件そのもののコピーではなく、同じジャンル・同じ要求水準の「類似案件」を新しく作ります。
 
 匿名化済みの実案件:
 """
@@ -184,10 +267,12 @@ ${masked.maskedCaseText}
 ${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${references}
 
 生成するもの:
-1. requestDoc: クラウドワークス風の模擬依頼書（Markdown。依頼の挨拶、やってほしいこと、完成尺、納品形式、ファイル名規則を含む。実案件と同じ種類の要求を含める）
-2. manualSteps: 操作手順書。1ステップ=1操作で細かく分割（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
+1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（Markdown）。実案件と同じ種類の要求水準を保つ
+${REQUEST_DOC_GUIDANCE}
+2. manualSteps: 操作手順書（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
+${MANUAL_GUIDANCE}
 3. script: 字幕・テロップ用の台本（テロップ課題でなければ null）
-4. selfCheckItems: 納品前セルフチェック項目（4〜6個、ふりがな不要）
+4. selfCheckItems: 納品前セルフチェック項目（4〜6個、ふりがな不要）。仕様書の指定と対応させる
 5. revisionNote: 初回納品後に依頼者から届く想定の修正指示文（依頼者口調のメッセージ。2〜3箇所の具体的な修正。実案件で起こりがちな修正内容にする）
 6. sampleDescription: 完成見本の説明（何がどうなっていれば合格か。職員の採点にも使う）
 ${COMMON_STYLE}
@@ -206,7 +291,7 @@ JSONスキーマ:
   "sampleDescription": "string"
 }`;
 
-    const json = await callGemini(prompt);
+    const json = await callGemini(prompt, "similar_case");
     const parsed = JSON.parse(json) as GeneratedSimilarCase;
     if (!parsed.title || !parsed.requestDoc || !Array.isArray(parsed.manualSteps)) {
       throw new Error("Gemini の模擬案件応答が期待した形式ではありません");
@@ -258,7 +343,7 @@ JSONスキーマ:
   "segments": [{"text": "string", "kind": "keep|cut", "cutReason": "filler|mistake|silence|retake|null", "silenceSeconds": number|null}]
 }`;
 
-    const json = await callGemini(prompt, 0.8);
+    const json = await callGemini(prompt, "source_script", 0.8);
     const parsed = JSON.parse(json) as GeneratedSourceScript;
     if (!parsed.title || !Array.isArray(parsed.segments) || parsed.segments.length === 0) {
       throw new Error("Gemini の台本応答が期待した形式ではありません");
@@ -297,7 +382,7 @@ JSONスキーマ:
   "criteria": [{"key": "string", "label": "string", "score": number (0-5), "comment": "string"}]
 }`;
 
-    const json = await callGemini(prompt);
+    const json = await callGemini(prompt, "grade");
     const parsed = JSON.parse(json) as GradeResult;
     if (typeof parsed.score !== "number" || !parsed.summary) {
       throw new Error("Gemini の応答が期待した形式ではありません");

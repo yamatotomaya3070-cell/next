@@ -42,3 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# 動画生成パイプラインのローカル作業領域（生成MP4/WAV/一時ファイル。数十MB〜のため追跡しない）
+/scripts/output/

@@ -1,5 +1,8 @@
 // データベース型定義（supabase/migrations/00001_initial_schema.sql と対応）
 
+import type { VideoTemplateType } from "./video/templates";
+import type { CheckResult, ProbeResult } from "./video/inspection/types";
+
 export type UserRole = "trainee" | "staff" | "admin";
 export type TaskType = "practice" | "real";
 export type TaskStatus = "draft" | "published" | "archived";
@@ -15,7 +18,8 @@ export type MaterialKind =
   | "script"
   | "sample"
   | "revision_note"
-  | "screenshot_guide";
+  | "screenshot_guide"
+  | "source_assets";
 export type FeedbackSource = "ai" | "staff";
 export type FeedbackStatus = "pending_review" | "approved" | "rejected";
 export type ProgressEvent =
@@ -121,6 +125,8 @@ export interface TaskMaterial {
   sort_order: number;
   generated_by: FeedbackSource;
   is_approved: boolean;
+  /** kind='sample' のみ使用: false の場合、提出前は職員のみ閲覧可（就労者には提出後に公開） */
+  visible_before_submission: boolean;
   created_at: string;
 }
 
@@ -197,6 +203,16 @@ export interface UserAptitude {
   recorded_at: string;
 }
 
+/** 本番移行の承認記録（supabase/migrations/00010_production_transfer_approvals.sql と対応） */
+export interface ProductionTransferApproval {
+  id: string;
+  user_id: string;
+  decision: "approved" | "revoked";
+  note: string | null;
+  approved_by: string | null;
+  created_at: string;
+}
+
 /** 実案件ナレッジ（supabase/migrations/00005_case_knowledge.sql と対応） */
 export interface CaseKnowledge {
   id: string;
@@ -213,6 +229,74 @@ export interface CaseKnowledge {
   created_at: string;
 }
 
+/** AI動画案件の生成ジョブ（supabase/migrations/00006_video_jobs.sql と対応） */
+export type VideoJobStatus =
+  | "pending"
+  | "generating_script"
+  | "generating_voice"
+  | "generating_assets"
+  | "generating_subtitles"
+  | "rendering_preview"
+  | "packaging_assets"
+  | "registering_task"
+  | "completed"
+  | "failed";
+
+export const VIDEO_JOB_STATUS_LABELS: Record<VideoJobStatus, string> = {
+  pending: "待機中",
+  generating_script: "台本を作成中",
+  generating_voice: "音声を作成中",
+  generating_assets: "素材を準備中",
+  generating_subtitles: "字幕を作成中",
+  rendering_preview: "完成見本を作成中",
+  packaging_assets: "支給素材をまとめ中",
+  registering_task: "案件を登録中",
+  completed: "完了",
+  failed: "失敗",
+};
+
+export interface VideoJobArtifacts {
+  sample_video?: string;
+  assets_zip?: string;
+  raw_take_video?: string;
+}
+
+export interface VideoJob {
+  id: string;
+  theme: string;
+  difficulty: number;
+  target_duration_sec: number;
+  template_type: VideoTemplateType;
+  status: VideoJobStatus;
+  progress: number;
+  script: unknown;
+  timeline: unknown;
+  answer_data: unknown;
+  artifacts: VideoJobArtifacts | null;
+  error: string | null;
+  error_stage: VideoJobStatus | null;
+  retry_count: number;
+  provider: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  task_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VideoJobEvent {
+  id: string;
+  job_id: string;
+  stage: VideoJobStatus;
+  event: "started" | "completed" | "failed" | "skipped";
+  detail: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
 export interface QaLog {
   id: string;
   user_id: string;
@@ -223,4 +307,42 @@ export interface QaLog {
   needs_staff: boolean;
   answered_at: string | null;
   created_at: string;
+}
+
+/** 提出動画の機械検品ジョブ（supabase/migrations/00008_submission_inspections.sql と対応） */
+export type SubmissionInspectionStatus =
+  | "pending"
+  | "probing"
+  | "comparing"
+  | "completed"
+  | "skipped"
+  | "failed";
+
+export const SUBMISSION_INSPECTION_STATUS_LABELS: Record<SubmissionInspectionStatus, string> = {
+  pending: "検品待ち",
+  probing: "動画を解析中",
+  comparing: "正解データと照合中",
+  completed: "検品完了",
+  skipped: "検品対象外",
+  failed: "検品失敗",
+};
+
+export type { CheckStatus, CheckItem, ProbeResult, CheckResult } from "./video/inspection/types";
+
+export interface SubmissionInspection {
+  id: string;
+  submission_id: string;
+  status: SubmissionInspectionStatus;
+  progress: number;
+  probe_result: ProbeResult | null;
+  check_result: CheckResult | null;
+  error: string | null;
+  error_stage: SubmissionInspectionStatus | null;
+  retry_count: number;
+  locked_by: string | null;
+  locked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

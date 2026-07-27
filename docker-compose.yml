@@ -1,0 +1,24 @@
+# 動画生成ワーカー一式。クライアント社内の常時起動機で `docker compose up -d` するだけ。
+# このPC（開発機）に依存せず、電源が入っていれば裏で常駐しジョブを処理し続ける。
+services:
+  # 音声合成エンジン（Windows SAPI の置き換え）。CPU版で十分。
+  voicevox:
+    image: voicevox/voicevox_engine:cpu-latest
+    restart: always
+
+  # 動画生成ワーカー本体
+  worker:
+    build: .
+    restart: always            # クラッシュ・OS再起動・停電復電後に自動復帰
+    depends_on:
+      - voicevox
+    env_file:
+      - .env                   # Supabase / Gemini のキー（.env.example を参照して作成）
+    environment:
+      VOICEVOX_URL: http://voicevox:50021
+    volumes:
+      # 生成途中の中間ファイルを永続化 → 再起動しても工程の途中から再開できる
+      - video-output:/app/scripts/output
+
+volumes:
+  video-output:

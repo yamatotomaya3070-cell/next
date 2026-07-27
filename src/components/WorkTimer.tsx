@@ -18,16 +18,27 @@ export function WorkTimer({
   alreadyStarted,
 }: WorkTimerProps) {
   const [isRunning, setIsRunning] = useState(false);
-  // 保存済みの作業時間を復元（SSR中は0）
-  const [seconds, setSeconds] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    return Number(localStorage.getItem(storageKey(assignmentId)) ?? 0) * 60;
-  });
+  // SSRとクライアント初回レンダーの不一致（ハイドレーションエラー）を避けるため、
+  // 初期値は常に0にし、localStorageからの復元はマウント後のuseEffectで行う。
+  const [seconds, setSeconds] = useState(0);
   const [hasStarted, setHasStarted] = useState(alreadyStarted);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFirstSaveRef = useRef(true);
 
-  // 経過分数を保存
+  // マウント後に保存済みの作業時間を復元（localStorageという外部ストアからの
+  // マウント時1回限りの同期であり、反応的な再レンダーの連鎖ではないためlintを抑制する）
   useEffect(() => {
+    const stored = Number(localStorage.getItem(storageKey(assignmentId)) ?? 0) * 60;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored > 0) setSeconds(stored);
+  }, [assignmentId]);
+
+  // 経過分数を保存（復元前の初回レンダーでは保存しない＝0で上書きしない）
+  useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false;
+      return;
+    }
     localStorage.setItem(
       storageKey(assignmentId),
       String(Math.floor(seconds / 60)),
@@ -70,7 +81,6 @@ export function WorkTimer({
           <p
             className="font-mono text-3xl font-bold text-ink"
             aria-live="polite"
-            suppressHydrationWarning
           >
             {hh > 0 ? `${hh}:` : ""}
             {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}

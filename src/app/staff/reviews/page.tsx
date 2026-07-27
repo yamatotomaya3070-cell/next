@@ -1,5 +1,5 @@
 import { requireRole, createClient } from "@/lib/supabase/server";
-import type { Feedback, SelfCheckItem } from "@/lib/types";
+import type { CheckItem, Feedback, SelfCheckItem, SubmissionInspection } from "@/lib/types";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState, ErrorState } from "@/components/ui/states";
@@ -10,6 +10,7 @@ import {
   IconCheckSquare,
   IconFileText,
   IconRobot,
+  IconVideo,
 } from "@/components/ui/icons";
 import { ReviewForm } from "./ReviewForm";
 
@@ -31,8 +32,15 @@ interface PendingReview extends Feedback {
       profiles: { display_name: string } | null;
       tasks: { title: string } | null;
     } | null;
+    submission_inspections: SubmissionInspection | null;
   } | null;
 }
+
+const CHECK_STATUS_BADGE: Record<CheckItem["status"], { label: string; tone: "success" | "danger" | "neutral" }> = {
+  pass: { label: "OK", tone: "success" },
+  fail: { label: "NG", tone: "danger" },
+  unknown: { label: "不明", tone: "neutral" },
+};
 
 export default async function ReviewsPage() {
   await requireRole("staff", "admin");
@@ -43,7 +51,8 @@ export default async function ReviewsPage() {
     .select(
       `*, submissions(
         id, file_name, file_path, note, work_minutes, self_check, version, assignment_id,
-        task_assignments(id, user_id, profiles(display_name), tasks(title))
+        task_assignments(id, user_id, profiles!task_assignments_user_id_fkey(display_name), tasks(title)),
+        submission_inspections(status, check_result, probe_result)
       )`,
     )
     .eq("status", "pending_review")
@@ -58,6 +67,16 @@ export default async function ReviewsPage() {
   }
 
   const reviews = (data ?? []) as unknown as PendingReview[];
+
+  // 提出動画は private バケット 'submissions' 内の相対パス。都度署名付きURLを発行する
+  const videoUrls = await Promise.all(
+    reviews.map(async (review) => {
+      const path = review.submissions?.file_path;
+      if (!path) return null;
+      const { data: signed } = await supabase.storage.from("submissions").createSignedUrl(path, 60 * 60);
+      return signed?.signedUrl ?? null;
+    }),
+  );
 
   return (
     <PageContainer>
@@ -79,10 +98,12 @@ export default async function ReviewsPage() {
         </div>
       ) : (
         <div className="mt-6 space-y-6">
-          {reviews.map((review) => {
+          {reviews.map((review, index) => {
             const sub = review.submissions;
             const assignment = sub?.task_assignments;
             const userName = assignment?.profiles?.display_name ?? "不明な利用者";
+            const videoUrl = videoUrls[index];
+            const inspection = sub?.submission_inspections ?? null;
             return (
               <SectionCard key={review.id}>
                 <div className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
@@ -102,6 +123,12 @@ export default async function ReviewsPage() {
                     />
                   )}
                 </div>
+
+                {videoUrl && (
+                  <div className="mt-4">
+                    <video controls className="w-full max-w-md rounded-xl border border-line" src={videoUrl} />
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-5 lg:grid-cols-2">
                   <div className="text-sm">
@@ -172,6 +199,44 @@ export default async function ReviewsPage() {
                       )}
                   </div>
                 </div>
+
+                {inspection && (
+                  <div className="mt-4 border-t border-line pt-4 text-sm">
+                    <p className="flex flex-wrap items-center gap-2 font-bold text-ink-soft">
+                      <IconVideo className="size-4" />
+                      機械検品結果
+                      {inspection.status === "completed" && inspection.check_result && (
+                        <StatusBadge
+                          label={`自動採点 ${inspection.check_result.autoScore}点`}
+                          tone="info"
+                          size="sm"
+                        />
+                      )}
+                    </p>
+                    {inspection.status !== "completed" ? (
+                      <p className="mt-2 text-ink-soft">
+                        {inspection.status === "failed"
+                          ? "検品に失敗しました。手動で確認してください。"
+                          : "検品中です。しばらくしてから再度確認してください。"}
+                      </p>
+                    ) : (
+                      <ul className="mt-2 space-y-1.5">
+                        {inspection.check_result?.checks.map((c) => {
+                          const badge = CHECK_STATUS_BADGE[c.status];
+                          return (
+                            <li key={c.key} className="flex flex-wrap items-center gap-2">
+                              <StatusBadge label={badge.label} tone={badge.tone} size="sm" />
+                              <span className="font-medium text-ink">{c.label}</span>
+                              <span className="text-ink-soft">
+                                実測: {c.actual} / 期待: {c.expected}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 border-t border-line pt-4">
                   <ReviewForm

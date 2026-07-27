@@ -231,6 +231,54 @@ export function RealCaseForm() {
             </div>
           </div>
 
+          {/* レベル調整: 同じ実案件から難易度だけを変えて作り直す（段階的なレベルアップ用） */}
+          <div className="rounded-2xl border border-line bg-surface p-6">
+            <h3 className="text-lg font-bold">レベルを調整して作り直す</h3>
+            <p className="mt-1 text-sm text-ink-soft">
+              同じ実案件から、難易度だけを変えて練習案件を作り直せます。利用者の習熟に合わせて少しずつレベルを上げていくのに使えます。
+            </p>
+            <p className="mt-3">
+              <span className="rounded-full bg-page px-3 py-1 text-sm">
+                いまのレベル: {"★".repeat(preview.difficulty)}（{preview.difficulty}/5）
+              </span>
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {preview.difficulty < 5 && (
+                <form action={previewAction}>
+                  <input type="hidden" name="raw_case_text" value={state.rawCaseText ?? ""} />
+                  <input type="hidden" name="trainee_note" value={state.traineeNote ?? ""} />
+                  <input type="hidden" name="difficulty" value={preview.difficulty + 1} />
+                  <button
+                    type="submit"
+                    disabled={isGenerating}
+                    className="min-h-12 rounded-xl bg-primary px-5 font-bold text-white transition hover:bg-primary-dark disabled:opacity-50"
+                  >
+                    ⬆ もう一段むずかしくして作り直す（レベル{preview.difficulty + 1}）
+                  </button>
+                </form>
+              )}
+              {preview.difficulty > 1 && (
+                <form action={previewAction}>
+                  <input type="hidden" name="raw_case_text" value={state.rawCaseText ?? ""} />
+                  <input type="hidden" name="trainee_note" value={state.traineeNote ?? ""} />
+                  <input type="hidden" name="difficulty" value={preview.difficulty - 1} />
+                  <button
+                    type="submit"
+                    disabled={isGenerating}
+                    className="min-h-12 rounded-xl border-2 border-line px-5 font-bold text-ink transition hover:bg-page disabled:opacity-50"
+                  >
+                    ⬇ 少しやさしくして作り直す（レベル{preview.difficulty - 1}）
+                  </button>
+                </form>
+              )}
+            </div>
+            {isGenerating && (
+              <p className="mt-2 text-sm text-ink-soft">
+                作り直しています…（1分ほどかかります）
+              </p>
+            )}
+          </div>
+
           <form action={saveAction} className="space-y-3">
             <input
               type="hidden"

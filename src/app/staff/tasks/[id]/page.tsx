@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import type { Profile, Task, TaskMaterial } from "@/lib/types";
 import { SKILL_TAG_LABELS } from "@/lib/types";
-import { approveMaterial, publishTask } from "@/lib/actions/staff";
+import { approveMaterial, publishTask, setSampleVisibility } from "@/lib/actions/staff";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge, TaskTypeBadge } from "@/components/ui/StatusBadge";
@@ -162,6 +162,47 @@ export default async function StaffTaskDetailPage({
                     </form>
                   )}
                 </div>
+                {material.kind === "sample" && (
+                  <form
+                    action={async (formData) => {
+                      "use server";
+                      await setSampleVisibility(
+                        material.id,
+                        id,
+                        formData.get("visible") === "true",
+                      );
+                    }}
+                    className="mt-3 flex flex-wrap items-center gap-2 text-sm"
+                  >
+                    <span className="text-ink-soft">完成見本の公開範囲:</span>
+                    <button
+                      type="submit"
+                      name="visible"
+                      value="true"
+                      disabled={material.visible_before_submission}
+                      className={`rounded-full px-3 py-1 font-bold ${
+                        material.visible_before_submission
+                          ? "bg-primary text-white"
+                          : "bg-page text-ink-soft hover:bg-primary-soft"
+                      }`}
+                    >
+                      提出前から公開
+                    </button>
+                    <button
+                      type="submit"
+                      name="visible"
+                      value="false"
+                      disabled={!material.visible_before_submission}
+                      className={`rounded-full px-3 py-1 font-bold ${
+                        !material.visible_before_submission
+                          ? "bg-primary text-white"
+                          : "bg-page text-ink-soft hover:bg-primary-soft"
+                      }`}
+                    >
+                      職員のみ（提出後に公開）
+                    </button>
+                  </form>
+                )}
                 {material.content && (
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-page p-4 text-sm leading-relaxed text-ink">
                     {material.content}

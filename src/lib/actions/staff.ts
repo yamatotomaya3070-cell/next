@@ -150,6 +150,21 @@ export async function approveMaterial(materialId: string, taskId: string) {
   revalidatePath(`/staff/tasks/${taskId}`);
 }
 
+/** 完成見本の公開範囲を切り替え（提出前から公開 / 職員のみ→提出後に公開） */
+export async function setSampleVisibility(
+  materialId: string,
+  taskId: string,
+  visibleBeforeSubmission: boolean,
+) {
+  await requireRole("staff", "admin");
+  const supabase = await createClient();
+  await supabase
+    .from("task_materials")
+    .update({ visible_before_submission: visibleBeforeSubmission })
+    .eq("id", materialId);
+  revalidatePath(`/staff/tasks/${taskId}`);
+}
+
 /** 課題を公開 */
 export async function publishTask(taskId: string) {
   await requireRole("staff", "admin");
@@ -259,6 +274,36 @@ export async function recordAptitude(
     recorded_by: staff.id,
   });
   if (error) return { error: "記録に失敗しました。" };
+
+  revalidatePath(`/staff/users/${userId}`);
+  return { error: null, success: true };
+}
+
+/** 本番移行の承認を記録（承認 or 取り消し。追記型で履歴を残す） */
+export async function recordTransferApproval(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const staff = await requireRole("staff", "admin");
+  const supabase = await createClient();
+
+  const userId = String(formData.get("user_id") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  if (!userId || (decision !== "approved" && decision !== "revoked")) {
+    return { error: "承認内容が不正です。" };
+  }
+
+  const { error } = await supabase
+    .from("production_transfer_approvals")
+    .insert({ user_id: userId, decision, note, approved_by: staff.id });
+  if (error) {
+    return {
+      error:
+        "承認の記録に失敗しました（migration 00010_production_transfer_approvals.sql が未適用の可能性があります）。",
+    };
+  }
 
   revalidatePath(`/staff/users/${userId}`);
   return { error: null, success: true };

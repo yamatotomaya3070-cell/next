@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile, createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeSubmission } from "@/lib/ai";
 import type { ProgressEvent, SelfCheckItem, TaskMaterial } from "@/lib/types";
 
@@ -148,6 +149,32 @@ export async function submitWork(
     });
   } catch (err) {
     console.error("AI採点に失敗しました（提出は完了しています）:", err);
+  }
+
+  // 機械検品ジョブ登録（AI動画生成パイプラインの案件で正解データがある場合のみ。
+  // video_jobs未適用/該当なしなら何もしない。実処理は scripts/video/inspect-worker.ts が行う）
+  // video_jobs / submission_inspections は職員のみRLSのため、就労者セッションの
+  // createClient() では読み書きできない。管理クライアントで最小限の範囲だけ操作する。
+  try {
+    const admin = createAdminClient();
+    const { data: videoJob, error: vjErr } = await admin
+      .from("video_jobs")
+      .select("id")
+      .eq("task_id", assignment.task_id)
+      .not("answer_data", "is", null)
+      .limit(1)
+      .maybeSingle();
+    if (vjErr) throw vjErr;
+
+    if (videoJob) {
+      const { error: insErr } = await admin.from("submission_inspections").insert({
+        submission_id: submission.id,
+        status: "pending",
+      });
+      if (insErr) throw insErr;
+    }
+  } catch (err) {
+    console.error("機械検品ジョブの登録に失敗しました（提出は完了しています）:", err);
   }
 
   revalidatePath(`/tasks/${assignmentId}`);

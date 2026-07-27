@@ -6,6 +6,7 @@ import {
   type AptitudeKey,
   type AssignmentStatus,
   type Profile,
+  type ProductionTransferApproval,
   type TaskType,
   type UserAptitude,
 } from "@/lib/types";
@@ -27,6 +28,7 @@ import {
   IconUsers,
 } from "@/components/ui/icons";
 import { AptitudeForm } from "./AptitudeForm";
+import { TransferApprovalForm } from "./TransferApprovalForm";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +67,7 @@ export default async function StaffUserDetailPage({
     { data: profileData },
     { data: aptitudesData },
     { data: assignmentsData },
+    { data: approvalData },
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", id).single(),
     supabase
@@ -77,12 +80,33 @@ export default async function StaffUserDetailPage({
       .select("id, status, due_at, completed_at, created_at, tasks(title, type)")
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
+    // migration 00010 未適用でも data=null で落ちない（承認なし扱い）
+    supabase
+      .from("production_transfer_approvals")
+      .select("*")
+      .eq("user_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!profileData) notFound();
   const profile = profileData as Profile;
   const aptitudes = (aptitudesData ?? []) as UserAptitude[];
   const assignments = (assignmentsData ?? []) as unknown as AssignmentRow[];
+  const latestApproval =
+    ((approvalData ?? [])[0] as ProductionTransferApproval | undefined) ?? null;
+  const isTransferApproved = latestApproval?.decision === "approved";
+
+  // 承認者名（approved_by は profiles への2本目のFKになるため埋め込みは避け、別途取得）
+  let approverName: string | null = null;
+  if (latestApproval?.approved_by) {
+    const { data: approver } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", latestApproval.approved_by)
+      .single();
+    approverName = approver?.display_name ?? null;
+  }
 
   // 提出・AI評価（この利用者の案件に限定）
   const assignmentIds = assignments.map((a) => a.id);
@@ -230,8 +254,36 @@ export default async function StaffUserDetailPage({
           <p className="mt-3 text-xs text-ink-soft">
             判定「{transferState}
             」は直近の実績から算出した目安です。本番案件への移行はスタッフが総合的に判断して最終承認してください（自動では移行しません）。
-            {/* TODO: 移行承認の記録機能（承認者・承認日時の保存）はDB項目追加後に実装する */}
           </p>
+
+          {/* 本番移行の最終承認（承認者・承認日時・所見を記録） */}
+          <div className="mt-4 rounded-xl border border-line bg-page p-4">
+            {isTransferApproved ? (
+              <p className="text-[15px] font-bold text-success">
+                ✅ 本番移行 承認済み
+                <span className="ml-2 font-normal text-ink-soft">
+                  （{approverName ? `${approverName} さん` : "スタッフ"}・
+                  {new Date(latestApproval!.created_at).toLocaleDateString(
+                    "ja-JP",
+                  )}
+                  ）
+                </span>
+              </p>
+            ) : (
+              <p className="text-[15px] font-bold text-ink-soft">
+                本番移行はまだ承認されていません。
+              </p>
+            )}
+            {latestApproval?.note && (
+              <p className="mt-1 text-sm text-ink">所見: {latestApproval.note}</p>
+            )}
+            <div className="mt-3">
+              <TransferApprovalForm
+                userId={id}
+                isApproved={isTransferApproved}
+              />
+            </div>
+          </div>
         </SectionCard>
       </div>
 

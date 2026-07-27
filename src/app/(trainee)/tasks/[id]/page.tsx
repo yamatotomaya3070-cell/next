@@ -115,7 +115,23 @@ export default async function TaskDetailPage({
   const manual = materials.find((m) => m.kind === "manual");
   const script = materials.find((m) => m.kind === "script");
   const checkList = materials.find((m) => m.kind === "revision_note");
-  const samples = materials.filter((m) => m.kind === "sample" && m.media_url);
+  const hasSubmitted = submissions.length > 0;
+  const downloadable = materials.filter(
+    (m) =>
+      (m.kind === "sample" || m.kind === "source_assets") &&
+      m.media_url &&
+      (m.kind !== "sample" || m.visible_before_submission || hasSubmitted),
+  );
+  // media_url は private バケット 'materials' 内の相対パス。都度署名付きURLを発行する
+  const signedDownloads = await Promise.all(
+    downloadable.map(async (m) => {
+      const { data } = await supabase.storage
+        .from("materials")
+        .createSignedUrl(m.media_url!, 60 * 60);
+      return { material: m, url: data?.signedUrl ?? null };
+    }),
+  );
+  const samples = signedDownloads.filter((d) => d.url);
   const selfCheckItems = parseSelfCheckItems(checkList);
   const furigana = profile.furigana_enabled;
 
@@ -166,10 +182,10 @@ export default async function TaskDetailPage({
               </p>
             ) : (
               <ul className="space-y-2">
-                {samples.map((m) => (
+                {samples.map(({ material: m, url }) => (
                   <li key={m.id}>
                     <a
-                      href={m.media_url!}
+                      href={url!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex min-h-11 items-center gap-2 rounded-xl border border-line p-3 font-medium text-primary transition hover:bg-primary-soft"

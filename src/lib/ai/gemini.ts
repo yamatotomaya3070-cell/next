@@ -201,6 +201,7 @@ export const geminiProvider: AiProvider = {
 ${input.knowledgeContext}
 上記の実案件の傾向（依頼の書き方・要求水準・注意されやすい点）を模擬依頼書とチェックリストに反映し、より本番に近い練習案件にしてください。`
       : "";
+    const editingPatternBlock = input.editingPatternContext ? `\n\n${input.editingPatternContext}` : "";
 
     const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。実案件と同等の情報量・具体性をもつ練習課題一式を生成してください。
 
@@ -209,7 +210,7 @@ ${input.knowledgeContext}
 - ジャンル: ${input.genre ?? "テーマから最も自然なジャンルを推定する"}
 - 難易度: ${input.difficulty} (1=いちばん簡単, 5=実務レベル)
 - 練習するスキル: ${input.skillTags.join(", ")}
-${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${knowledgeBlock}
+${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${knowledgeBlock}${editingPatternBlock}
 
 生成するもの:
 1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（Markdown）
@@ -253,6 +254,7 @@ JSONスキーマ:
             .map((s, i) => `${i + 1}. ${s}`)
             .join("\n")}\n参考例の依頼の書き方・要求水準に寄せると、より本番に近くなります。`
         : "";
+    const editingPatternBlock = input.editingPatternContext ? `\n\n${input.editingPatternContext}` : "";
 
     // ステップ2: 模擬案件一式の生成
     const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。以下の「匿名化済みの実案件」に似た練習案件一式を、実案件と同等の情報量・具体性で生成してください。実案件そのもののコピーではなく、同じジャンル・同じ要求水準の「類似案件」を新しく作ります。
@@ -264,7 +266,7 @@ ${masked.maskedCaseText}
 - ジャンル: ${masked.genre}
 - 練習するスキル: ${masked.skillTags.join(", ")}
 - 難易度: ${difficulty} (1=いちばん簡単, 5=実務レベル)
-${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${references}
+${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""}${references}${editingPatternBlock}
 
 生成するもの:
 1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（Markdown）。実案件と同じ種類の要求水準を保つ

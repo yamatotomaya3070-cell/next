@@ -111,6 +111,9 @@ export function renderVideo(input: RenderInput): RenderResult {
   const titleY = Math.round(height * 0.14);
   const cardTextY = Math.round(height * 0.34);
   const tagY = Math.round(height * 0.1);
+  // 実写Bロール背景のとき、タイトル/箇条書きが実写に埋もれて読みにくいため、
+  // 話者名タグと同じ「白い半透明の下地」を敷く。静止画スライド背景では従来どおり下地なし。
+  const cardBox = input.backgroundIsVideo ? ":box=1:boxcolor=0xFFFFFF@0.72:boxborderw=18" : "";
   for (const [i, scene] of scenes.entries()) {
     const t = timingBySceneId.get(scene.id);
     if (!t) continue;
@@ -119,14 +122,14 @@ export function renderVideo(input: RenderInput): RenderResult {
       const file = `title_${String(i).padStart(3, "0")}.txt`;
       writeFileSync(join(renderDir, file), scene.cardTitle, "utf8");
       drawtexts.push(
-        `drawtext=fontfile='${FONT}':textfile=render/${file}:fontcolor=0x333333:fontsize=${Math.round(64 * scale) || 44}:x=(w-text_w)/2:y=${titleY}:enable='${enable}'`,
+        `drawtext=fontfile='${FONT}':textfile=render/${file}:fontcolor=0x333333:fontsize=${Math.round(64 * scale) || 44}${cardBox}:x=(w-text_w)/2:y=${titleY}:enable='${enable}'`,
       );
     }
     if (scene.cardText) {
       const file = `card_${String(i).padStart(3, "0")}.txt`;
       writeFileSync(join(renderDir, file), scene.cardText, "utf8");
       drawtexts.push(
-        `drawtext=fontfile='${FONT}':textfile=render/${file}:fontcolor=0x555555:fontsize=${Math.round(50 * scale) || 36}:line_spacing=14:x=(w-text_w)/2:y=${cardTextY}:enable='${enable}'`,
+        `drawtext=fontfile='${FONT}':textfile=render/${file}:fontcolor=0x555555:fontsize=${Math.round(50 * scale) || 36}${cardBox}:line_spacing=14:x=(w-text_w)/2:y=${cardTextY}:enable='${enable}'`,
       );
     }
     if (scene.speakerLabel) {

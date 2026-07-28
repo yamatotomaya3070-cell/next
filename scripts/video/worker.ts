@@ -67,6 +67,8 @@ type JobRow = {
   retry_count: number;
   created_by: string | null;
   template_type: VideoTemplateType;
+  use_broll: boolean;
+  broll_keywords: string[];
 };
 
 function workdirFor(jobId: string): string {
@@ -91,7 +93,7 @@ async function updateJob(jobId: string, patch: Record<string, unknown>) {
 }
 
 const JOB_SELECT =
-  "id, theme, difficulty, target_duration_sec, status, script, retry_count, created_by, template_type";
+  "id, theme, difficulty, target_duration_sec, status, script, retry_count, created_by, template_type, use_broll, broll_keywords";
 
 /** 未完了ジョブを1件クレームする（他ワーカーとの二重実行防止） */
 async function claimNextJob(): Promise<JobRow | null> {
@@ -221,6 +223,8 @@ async function processJob(job: JobRow): Promise<void> {
       targetDurationSec: job.target_duration_sec,
       workdir,
       providedScript,
+      useBroll: job.use_broll,
+      brollKeywords: job.broll_keywords,
       onStage: async (stage, progress) => {
         if (currentStage) {
           await logEvent(jobId, currentStage, "completed", undefined, Date.now() - currentStageStartedAt);

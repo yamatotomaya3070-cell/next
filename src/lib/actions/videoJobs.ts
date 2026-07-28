@@ -28,6 +28,11 @@ export async function createVideoJob(
   const difficulty = Number(formData.get("difficulty") ?? 1);
   const targetDurationSec = Number(formData.get("target_duration_sec") ?? 60);
   const templateType = String(formData.get("template_type") ?? "") as VideoTemplateType;
+  const useBroll = formData.get("use_broll") === "on";
+  const brollKeywords = String(formData.get("broll_keywords") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   if (!theme) return { error: "動画のテーマを入力してください。" };
   if (!VIDEO_TEMPLATE_TYPES.includes(templateType)) {
@@ -48,13 +53,15 @@ export async function createVideoJob(
     difficulty,
     target_duration_sec: Math.round(targetDurationSec),
     template_type: templateType,
+    use_broll: useBroll,
+    broll_keywords: brollKeywords,
     status: "pending",
     created_by: staff.id,
   });
   if (error) {
     return {
       error:
-        "登録に失敗しました。video_jobs テーブル（migration 00006/00007）が適用済みか確認してください。",
+        "登録に失敗しました。video_jobs テーブル（migration 00006/00007/00011）が適用済みか確認してください。",
     };
   }
 

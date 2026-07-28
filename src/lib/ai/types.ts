@@ -8,6 +8,7 @@ export interface GenerateTaskInput {
   genre?: string; // 動画ジャンル（例: 'YouTube解説', 'TikTokショート', '商品紹介'）。未指定ならテーマから推定
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
   knowledgeContext?: string; // 蓄積済み実案件ナレッジの要約（依頼傾向・注意事項）
+  editingPatternContext?: string; // 実案件動画から学習した編集パターン（Loop A。editingPatternToPromptBlockの出力）
 }
 
 /** 練習教材の生成結果 */
@@ -28,6 +29,7 @@ export interface GenerateSimilarCaseInput {
   difficulty?: number; // 1-5。未指定なら実案件から推定
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
   referenceSnippets?: string[]; // RAG: 過去の匿名化済み類似案件の抜粋（match_case_documents の結果）
+  editingPatternContext?: string; // 実案件動画から学習した編集パターン（Loop A。editingPatternToPromptBlockの出力）
 }
 
 /** 匿名化レポート（職員承認画面に表示する） */

@@ -16,6 +16,7 @@ const initialState: ActionState = { error: null };
 export function CreateVideoJobForm() {
   const [state, formAction, isPending] = useActionState(createVideoJob, initialState);
   const [templateType, setTemplateType] = useState<VideoTemplateType>("character_explainer");
+  const [useBroll, setUseBroll] = useState(false);
   const config = TEMPLATE_REGISTRY[templateType];
   const implemented = isTemplateImplemented(templateType);
   const templateSelectRef = useRef<HTMLSelectElement>(null);
@@ -117,6 +118,40 @@ export function CreateVideoJobForm() {
             className="mt-1 w-full rounded-xl border-2 border-line p-3"
           />
         </div>
+      </div>
+
+      <div className="rounded-xl border-2 border-line p-4">
+        <label className="flex items-center gap-2 font-bold text-ink">
+          <input
+            type="checkbox"
+            name="use_broll"
+            checked={useBroll}
+            onChange={(e) => setUseBroll(e.target.checked)}
+            className="h-5 w-5"
+          />
+          実写Bロール背景を使う（Pexels）
+        </label>
+        <p className="mt-1 text-sm text-ink-soft">
+          スライドの代わりに実写映像を背景に使い、より本番に近い見た目にします。
+          ワーカーに <code>PEXELS_API_KEY</code> の設定が必要です（未設定なら自動で静止画になります）。
+        </p>
+        {useBroll && (
+          <div className="mt-3">
+            <label htmlFor="broll_keywords" className="block text-sm font-bold text-ink">
+              検索キーワード（英語推奨・カンマ区切り）
+            </label>
+            <input
+              id="broll_keywords"
+              name="broll_keywords"
+              type="text"
+              placeholder="例: warehouse inventory, logistics workers, office team meeting"
+              className="mt-1 w-full rounded-xl border-2 border-line p-3 focus:border-primary focus:outline-none"
+            />
+            <p className="mt-1 text-sm text-ink-soft">
+              空欄ならテーマから自動で探します（英語のほうが実写素材が見つかりやすいです）。
+            </p>
+          </div>
+        )}
       </div>
 
       <p className="rounded-xl bg-page p-3 text-sm text-ink-soft">

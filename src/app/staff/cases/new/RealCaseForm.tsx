@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   previewSimilarCase,
   saveSimilarCase,
@@ -12,7 +12,14 @@ import type { ActionState } from "@/lib/actions/assignments";
 const initialPreviewState: SimilarCasePreviewState = { error: null };
 const initialSaveState: ActionState = { error: null };
 
-export function RealCaseForm() {
+export interface IngestOption {
+  id: string;
+  title: string;
+  genre: string | null;
+}
+
+export function RealCaseForm({ ingests = [] }: { ingests?: IngestOption[] }) {
+  const [ingestId, setIngestId] = useState("");
   const [state, previewAction, isGenerating] = useActionState(
     previewSimilarCase,
     initialPreviewState,
@@ -81,6 +88,32 @@ export function RealCaseForm() {
             />
           </div>
         </div>
+
+        {ingests.length > 0 && (
+          <div>
+            <label htmlFor="ingest_id" className="block font-bold text-ink">
+              参考動画から編集パターンを反映（任意）
+            </label>
+            <p className="mt-1 text-sm text-ink-soft">
+              解析済みの取り込み動画を選ぶと、その動画のテンポ・テロップ量・構成を学習し、実案件に近い編集水準で生成します。
+            </p>
+            <select
+              id="ingest_id"
+              name="ingest_id"
+              value={ingestId}
+              onChange={(e) => setIngestId(e.target.value)}
+              className="mt-1 w-full rounded-xl border-2 border-line p-3"
+            >
+              <option value="">使わない</option>
+              {ingests.map((ing) => (
+                <option key={ing.id} value={ing.id}>
+                  {ing.title}
+                  {ing.genre ? `（${ing.genre}）` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {state.error && (
           <p role="alert" className="rounded-xl bg-danger-soft p-4 font-bold text-danger">
@@ -247,6 +280,7 @@ export function RealCaseForm() {
                 <form action={previewAction}>
                   <input type="hidden" name="raw_case_text" value={state.rawCaseText ?? ""} />
                   <input type="hidden" name="trainee_note" value={state.traineeNote ?? ""} />
+                  <input type="hidden" name="ingest_id" value={ingestId} />
                   <input type="hidden" name="difficulty" value={preview.difficulty + 1} />
                   <button
                     type="submit"
@@ -261,6 +295,7 @@ export function RealCaseForm() {
                 <form action={previewAction}>
                   <input type="hidden" name="raw_case_text" value={state.rawCaseText ?? ""} />
                   <input type="hidden" name="trainee_note" value={state.traineeNote ?? ""} />
+                  <input type="hidden" name="ingest_id" value={ingestId} />
                   <input type="hidden" name="difficulty" value={preview.difficulty - 1} />
                   <button
                     type="submit"

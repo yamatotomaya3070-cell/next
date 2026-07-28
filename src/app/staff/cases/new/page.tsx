@@ -22,6 +22,18 @@ export default async function NewCasePage() {
     .limit(20);
   const knowledge = (knowledgeData ?? []) as CaseKnowledge[];
 
+  // 解析済みの取り込み動画（編集パターン注入用の選択肢）。テーブル未適用ならエラーを握りつぶす
+  const { data: ingestData } = await supabase
+    .from("video_ingests")
+    .select("id, title, editing_pattern")
+    .eq("status", "analyzed")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const ingests = (ingestData ?? []).map((i) => {
+    const pattern = i.editing_pattern as { genre?: string } | null;
+    return { id: i.id as string, title: i.title as string, genre: pattern?.genre ?? null };
+  });
+
   return (
     <PageContainer>
       <div className="mx-auto max-w-3xl">
@@ -38,7 +50,7 @@ export default async function NewCasePage() {
         </p>
 
         <div className="mt-6">
-          <RealCaseForm />
+          <RealCaseForm ingests={ingests} />
         </div>
 
         {/* 蓄積済みナレッジ */}

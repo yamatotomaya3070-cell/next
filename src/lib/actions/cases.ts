@@ -5,7 +5,21 @@ import { redirect } from "next/navigation";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import { generateSimilarCase } from "@/lib/ai";
 import type { GeneratedSimilarCase } from "@/lib/ai";
+import { editingPatternToPromptBlock, type EditingPattern } from "@/lib/video/analysis/types";
 import type { ActionState } from "./assignments";
+
+/** 解析済み取り込み(video_ingests)の編集パターンを生成注入用テキストに変換する */
+async function loadEditingPatternContext(ingestId: string): Promise<string | undefined> {
+  if (!ingestId) return undefined;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("video_ingests")
+    .select("editing_pattern, status")
+    .eq("id", ingestId)
+    .maybeSingle();
+  if (!data || data.status !== "analyzed" || !data.editing_pattern) return undefined;
+  return editingPatternToPromptBlock(data.editing_pattern as EditingPattern);
+}
 
 const MAX_CASE_TEXT_LENGTH = 20000;
 
@@ -25,6 +39,7 @@ export async function previewSimilarCase(
   const rawCaseText = String(formData.get("raw_case_text") ?? "").trim();
   const difficultyRaw = String(formData.get("difficulty") ?? "").trim();
   const traineeNote = String(formData.get("trainee_note") ?? "").trim();
+  const ingestId = String(formData.get("ingest_id") ?? "").trim();
 
   if (!rawCaseText) {
     return { error: "実案件の依頼文を貼り付けてください。" };
@@ -41,10 +56,12 @@ export async function previewSimilarCase(
   }
 
   try {
+    const editingPatternContext = await loadEditingPatternContext(ingestId);
     const preview = await generateSimilarCase({
       rawCaseText,
       difficulty,
       traineeNote: traineeNote || undefined,
+      editingPatternContext,
     });
     return { error: null, preview, rawCaseText, traineeNote };
   } catch (err) {

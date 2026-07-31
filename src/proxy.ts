@@ -2,7 +2,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/setup"];
+// /api/cron はセッションを持たない Vercel Cron から叩かれる。
+// ルート側で CRON_SECRET を検証するため、ここでの /login リダイレクト対象から除外する。
+const PUBLIC_PATHS = ["/login", "/setup", "/api/cron"];
 
 export default async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

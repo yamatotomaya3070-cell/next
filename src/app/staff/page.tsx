@@ -434,15 +434,13 @@ export default async function StaffDashboardPage() {
             <IconSparkles className="size-4" />
             模擬案件を生成する
           </Link>
-          <button
-            type="button"
-            disabled
-            title="準備中"
+          <Link
+            href="/staff/users/new"
             className={`${secondaryButtonClass} w-full text-sm`}
           >
             <IconUsers className="size-4" />
-            利用者を追加する（準備中）
-          </button>
+            利用者・職員を追加する
+          </Link>
           <button
             type="button"
             disabled

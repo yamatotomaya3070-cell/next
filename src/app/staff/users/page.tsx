@@ -151,10 +151,18 @@ export default async function StaffUsersPage({
           <IconUsers className="text-primary" />
           利用者一覧
         </h1>
-        <div className="w-full max-w-xs">
-          <Suspense fallback={null}>
-            <SearchInput placeholder="利用者名で検索" label="利用者を検索" />
-          </Suspense>
+        <div className="flex w-full max-w-xl items-center gap-3">
+          <div className="flex-1">
+            <Suspense fallback={null}>
+              <SearchInput placeholder="利用者名で検索" label="利用者を検索" />
+            </Suspense>
+          </div>
+          <Link
+            href="/staff/users/new"
+            className="min-h-11 shrink-0 rounded-xl bg-primary px-5 py-2.5 font-bold text-white hover:bg-primary-dark"
+          >
+            ＋ 追加
+          </Link>
         </div>
       </div>
 
@@ -173,7 +181,7 @@ export default async function StaffUsersPage({
             emptyDescription={
               keyword
                 ? "別のキーワードで検索してください。"
-                : "Supabase の Authentication で利用者アカウントを作成してください。"
+                : "右上の「＋ 追加」から利用者アカウントを作成してください。"
             }
           />
         </SectionCard>

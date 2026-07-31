@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/states";
 import { IconSparkles } from "@/components/ui/icons";
 import type { EditingPattern } from "@/lib/video/analysis/types";
 import { UploadIngestForm } from "./UploadIngestForm";
+import { AnalyzeButton } from "./AnalyzeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function VideoIngestsPage() {
         </p>
         <p className="mt-3 rounded-xl border border-warning/30 bg-warning-soft p-3 text-sm text-ink">
           動画は職員のみが閲覧できます。実案件の動画は、依頼者の許諾を確認してから取り込んでください。
-          解析には ffmpeg/AI が使えるワーカー（<code className="rounded bg-page px-1">npm run video:ingest-worker</code>）の実行が必要です。
+          解析はクラウド上で自動実行されます（数分以内に反映）。すぐに結果を見たいときは各動画の「今すぐ解析する」を押してください。
         </p>
 
         <div className="mt-6">
@@ -118,8 +119,11 @@ export default async function VideoIngestsPage() {
                     )}
                     {(ing.status === "pending" || ing.status === "analyzing") && (
                       <p className="mt-2 text-sm text-ink-soft">
-                        ワーカーの解析を待っています（<code className="rounded bg-page px-1">npm run video:ingest-worker</code>）。
+                        クラウドでの自動解析を待っています（数分以内）。すぐに実行することもできます。
                       </p>
+                    )}
+                    {ing.status !== "analyzing" && (
+                      <AnalyzeButton id={ing.id} />
                     )}
                   </li>
                 ))}

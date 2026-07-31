@@ -68,7 +68,7 @@ export function UploadIngestForm() {
     }
 
     setPhase("done");
-    setMessage("取り込みました。ワーカーが解析すると下の一覧に反映されます。");
+    setMessage("取り込みました。クラウドで自動解析され、下の一覧に反映されます（「今すぐ解析する」で即実行も可能）。");
     setTitle("");
     setGenreHint("");
     setConsent(false);

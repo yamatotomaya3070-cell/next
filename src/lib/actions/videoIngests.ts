@@ -12,7 +12,9 @@ import type { ActionState } from "./assignments";
  * 大きい動画は Vercel のサーバーアクション・ボディ上限(~4.5MB)を超えるため、
  * ブラウザから Supabase Storage へ「署名付きアップロードURL」で直接アップロードし、
  * その後 registerVideoIngest で video_ingests 行を登録する（storage_path のみ受け取る）。
- * 解析は scripts/video/ingest-worker.ts（ffmpeg/Gemini）が別途拾って実行する。
+ * 解析はクラウド（Vercel Cron + Gemini Files API、src/lib/video/analysis/ingestProcessor.ts）が
+ * 自動で拾って実行する。職員は /api/ingests/analyze で「今すぐ解析」も可能。
+ * （旧経路の scripts/video/ingest-worker.ts はローカル/大容量向けのレガシーとして残置）
  */
 
 const INGEST_BUCKET = "materials";

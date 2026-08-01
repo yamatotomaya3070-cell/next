@@ -34,6 +34,8 @@ import {
   TraineeProgressTable,
   type TraineeProgressRow,
 } from "./TraineeProgressTable";
+import { ExportReportButton, type ReportRow } from "./ExportReportButton";
+import { ASSIGNMENT_STATUS_LABELS } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -292,6 +294,39 @@ export default async function StaffDashboardPage() {
     };
   });
 
+  // CSVレポート用の行データ（進行状況テーブル＋移行判定・実績を集計）
+  const TASK_TYPE_LABEL: Record<TaskType, string> = {
+    practice: "練習案件",
+    real: "本番案件",
+  };
+  const STAFF_CHECK_LABEL = {
+    pending: "承認待ち",
+    approved: "承認済み",
+    none: "未確認",
+  } as const;
+  const reportRows: ReportRow[] = progressRows.map((row) => {
+    const completedCount = assignments.filter(
+      (a) => a.user_id === row.userId && a.status === "completed",
+    ).length;
+    return {
+      userName: row.userName,
+      transferState: transferState(row.userId),
+      currentTaskTitle: row.currentTaskTitle ?? "案件なし",
+      currentTaskType: row.currentTaskType
+        ? TASK_TYPE_LABEL[row.currentTaskType]
+        : "-",
+      currentStatus: row.currentStatus
+        ? ASSIGNMENT_STATUS_LABELS[row.currentStatus].label
+        : "-",
+      progressPercent: row.progressPercent,
+      aiScore: row.aiScore,
+      completedCount,
+      revisionCount: revisionCount(row.userId),
+      onTimeRate: onTimeRate(row.userId),
+      staffCheck: STAFF_CHECK_LABEL[row.staffCheck],
+    };
+  });
+
   // KPI
   const workingTrainees = trainees.filter(
     (t) => (activeByUser.get(t.id) ?? []).length > 0,
@@ -441,15 +476,7 @@ export default async function StaffDashboardPage() {
             <IconUsers className="size-4" />
             利用者・職員を追加する
           </Link>
-          <button
-            type="button"
-            disabled
-            title="準備中"
-            className={`${secondaryButtonClass} w-full text-sm`}
-          >
-            <IconClipboard className="size-4" />
-            レポートを出力する（準備中）
-          </button>
+          <ExportReportButton rows={reportRows} />
         </div>
       </SectionCard>
     </>

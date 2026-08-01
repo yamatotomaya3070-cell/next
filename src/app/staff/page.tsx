@@ -428,11 +428,11 @@ export default async function StaffDashboardPage() {
             案件を配布する
           </Link>
           <Link
-            href="/staff/tasks/new"
+            href="/staff/video-jobs"
             className={`${secondaryButtonClass} w-full text-sm`}
           >
             <IconSparkles className="size-4" />
-            模擬案件を生成する
+            案件をつくる
           </Link>
           <Link
             href="/staff/users/new"

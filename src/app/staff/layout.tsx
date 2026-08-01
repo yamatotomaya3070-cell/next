@@ -9,29 +9,26 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// メニューは「案件」中心に集約し、実案件の学習は裏方の1項目にまとめる。
+// （旧: 模擬案件／AI動画案件／CrowdWorks案件／参考動画の学習 の4分裂＋準備中4項目 → 統合）
 const STAFF_NAV: SidebarItem[] = [
   { href: "/staff", label: "ダッシュボード", icon: "home" },
-  { href: "/staff/users", label: "利用者一覧", icon: "users" },
-  { href: "/staff/tasks", label: "案件管理", icon: "clipboard" },
-  { href: "/staff/tasks/new", label: "模擬案件", icon: "sparkles" },
-  { href: "/staff/cases/new", label: "CrowdWorks案件", icon: "globe" },
-  { href: "/staff/video-jobs", label: "AI動画案件", icon: "play" },
-  { href: "/staff/video-ingests", label: "参考動画の学習", icon: "sparkles" },
+  { href: "/staff/users", label: "利用者", icon: "users" },
+  { href: "/staff/tasks", label: "案件", icon: "clipboard" },
+  { href: "/staff/video-jobs", label: "案件をつくる", icon: "sparkles" },
   { href: "/staff/reviews", label: "提出レビュー", icon: "check" },
-  { href: "/staff/ai", label: "AI評価", icon: "star", disabled: true },
-  { href: "/staff/progress", label: "進行管理", icon: "activity", disabled: true },
-  { href: "/staff/reports", label: "レポート", icon: "chart", disabled: true },
-  { href: "/staff/settings", label: "設定", icon: "settings", disabled: true },
+  { href: "/staff/cases/new", label: "実案件から学ぶ", icon: "globe" },
 ];
 
 const TITLE_MAP: Record<string, string> = {
   "/staff": "スタッフダッシュボード",
-  "/staff/users": "利用者一覧",
-  "/staff/tasks": "案件管理",
-  "/staff/tasks/new": "模擬案件の生成",
-  "/staff/cases/new": "CrowdWorks案件の登録",
-  "/staff/video-jobs": "AI動画案件の生成",
-  "/staff/video-ingests": "参考動画の取り込み・解析",
+  "/staff/users": "利用者",
+  "/staff/users/new": "利用者・職員の追加",
+  "/staff/tasks": "案件",
+  "/staff/tasks/new": "案件の生成",
+  "/staff/cases/new": "実案件から学ぶ",
+  "/staff/video-jobs": "案件をつくる",
+  "/staff/video-ingests": "参考動画の学習",
   "/staff/reviews": "提出レビュー",
 };
 

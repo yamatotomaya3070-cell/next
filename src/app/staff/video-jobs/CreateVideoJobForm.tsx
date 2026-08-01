@@ -1,89 +1,41 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState } from "react";
 import { createVideoJob } from "@/lib/actions/videoJobs";
-import {
-  TEMPLATE_REGISTRY,
-  VIDEO_TEMPLATE_TYPES,
-  isTemplateImplemented,
-  type VideoTemplateType,
-} from "@/lib/video/templates";
+import { TEMPLATE_REGISTRY, type VideoTemplateType } from "@/lib/video/templates";
 import { SKILL_TAG_LABELS } from "@/lib/types";
 import type { ActionState } from "@/lib/actions/assignments";
 
 const initialState: ActionState = { error: null };
 
+// 就労者が編集する練習素材は実写寄りの1本立て（キャラクター解説テンプレは廃止）。
+// ジャンル選択はやめ、テーマを入れれば実写Bロール＋ナレーション構成で自動生成する。
+const TEMPLATE: VideoTemplateType = "business_explainer";
+
 export function CreateVideoJobForm() {
   const [state, formAction, isPending] = useActionState(createVideoJob, initialState);
-  const [templateType, setTemplateType] = useState<VideoTemplateType>("character_explainer");
-  const [useBroll, setUseBroll] = useState(false);
-  const config = TEMPLATE_REGISTRY[templateType];
-  const implemented = isTemplateImplemented(templateType);
-  const templateSelectRef = useRef<HTMLSelectElement>(null);
-  const difficultySelectRef = useRef<HTMLSelectElement>(null);
-
-  // React 19のフォームアクションは成功後にネイティブ<form>.reset()を呼ぶため、
-  // <select>が（controlled valueとは無関係に）DOM上の最初のoptionへ戻ってしまう。
-  // 送信が確定するたびに、React側の状態に合わせて明示的に書き戻す。
-  useEffect(() => {
-    if (templateSelectRef.current) templateSelectRef.current.value = templateType;
-    if (difficultySelectRef.current) difficultySelectRef.current.value = String(config.defaultDifficulty);
-  }, [state, templateType, config.defaultDifficulty]);
+  const config = TEMPLATE_REGISTRY[TEMPLATE];
 
   return (
     <form action={formAction} className="space-y-4 rounded-2xl border border-line bg-surface p-5">
-      <div>
-        <label htmlFor="template_type" className="block font-bold text-ink">
-          案件ジャンル <span className="text-danger">*</span>
-        </label>
-        <select
-          id="template_type"
-          name="template_type"
-          ref={templateSelectRef}
-          value={templateType}
-          onChange={(e) => setTemplateType(e.target.value as VideoTemplateType)}
-          className="mt-1 w-full rounded-xl border-2 border-line p-3"
-        >
-          {VIDEO_TEMPLATE_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {TEMPLATE_REGISTRY[type].label}
-              {isTemplateImplemented(type) ? "" : "（準備中）"}
-            </option>
-          ))}
-        </select>
-
-        <div className="mt-3 rounded-xl bg-page p-4 text-sm text-ink-soft">
-          <p className="text-ink">{config.description}</p>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
-            <dt>画面サイズ</dt>
-            <dd className="text-ink">
-              {config.width}x{config.height}（{config.aspectRatio}）
-            </dd>
-            <dt>目標尺</dt>
-            <dd className="text-ink">
-              {config.durationRange.min}〜{config.durationRange.max}秒（既定{config.durationRange.default}秒）
-            </dd>
-            <dt>練習できる技術</dt>
-            <dd className="text-ink">{config.skillTags.map((t) => SKILL_TAG_LABELS[t] ?? t).join("・")}</dd>
-          </dl>
-          {!implemented && (
-            <p className="mt-2 font-bold text-danger">このジャンルは準備中のため、まだ生成できません。</p>
-          )}
-        </div>
-      </div>
+      {/* ジャンルは固定（実写Bロール＋ナレーション）。フォームには出さず内部で指定する。 */}
+      <input type="hidden" name="template_type" value={TEMPLATE} />
 
       <div>
         <label htmlFor="theme" className="block font-bold text-ink">
-          動画のテーマ <span className="text-danger">*</span>
+          案件のテーマ <span className="text-danger">*</span>
         </label>
         <input
           id="theme"
           name="theme"
           type="text"
           required
-          placeholder="例: スマートフォンの歴史"
+          placeholder="例: 在庫管理のコツ / スマートフォンの選び方"
           className="mt-1 w-full rounded-xl border-2 border-line p-3 focus:border-primary focus:outline-none"
         />
+        <p className="mt-1 text-sm text-ink-soft">
+          テーマを入れるだけで、実写映像＋ナレーション＋テロップの練習用動画と、依頼書・仕様書・正解データを自動で用意します。
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -94,7 +46,6 @@ export function CreateVideoJobForm() {
           <select
             id="difficulty"
             name="difficulty"
-            ref={difficultySelectRef}
             defaultValue={config.defaultDifficulty}
             className="mt-1 w-full rounded-xl border-2 border-line p-3"
           >
@@ -114,49 +65,22 @@ export function CreateVideoJobForm() {
             min={config.durationRange.min}
             max={config.durationRange.max}
             defaultValue={config.durationRange.default}
-            key={templateType}
             className="mt-1 w-full rounded-xl border-2 border-line p-3"
           />
+          <p className="mt-1 text-xs text-ink-soft">
+            {config.durationRange.min}〜{config.durationRange.max}秒（既定{config.durationRange.default}秒）／
+            {config.width}x{config.height}
+          </p>
         </div>
       </div>
 
-      <div className="rounded-xl border-2 border-line p-4">
-        <label className="flex items-center gap-2 font-bold text-ink">
-          <input
-            type="checkbox"
-            name="use_broll"
-            checked={useBroll}
-            onChange={(e) => setUseBroll(e.target.checked)}
-            className="h-5 w-5"
-          />
-          実写Bロール背景を使う（Pexels）
-        </label>
-        <p className="mt-1 text-sm text-ink-soft">
-          スライドの代わりに実写映像を背景に使い、より本番に近い見た目にします。
-          ワーカーに <code>PEXELS_API_KEY</code> の設定が必要です（未設定なら自動で静止画になります）。
-        </p>
-        {useBroll && (
-          <div className="mt-3">
-            <label htmlFor="broll_keywords" className="block text-sm font-bold text-ink">
-              検索キーワード（英語推奨・カンマ区切り）
-            </label>
-            <input
-              id="broll_keywords"
-              name="broll_keywords"
-              type="text"
-              placeholder="例: warehouse inventory, logistics workers, office team meeting"
-              className="mt-1 w-full rounded-xl border-2 border-line p-3 focus:border-primary focus:outline-none"
-            />
-            <p className="mt-1 text-sm text-ink-soft">
-              空欄ならテーマから自動で探します（英語のほうが実写素材が見つかりやすいです）。
-            </p>
-          </div>
-        )}
+      <div className="rounded-xl bg-page p-3 text-sm text-ink-soft">
+        練習できる技術: {config.skillTags.map((t) => SKILL_TAG_LABELS[t] ?? t).join("・")}
       </div>
 
       <p className="rounded-xl bg-page p-3 text-sm text-ink-soft">
-        生成を開始すると、台本→音声→字幕→完成見本のレンダリング→素材パッケージ化→案件登録の順に処理されます。
-        実処理は職員のワーカー（ffmpegが使えるマシン）が拾って実行するため、反映まで少し時間がかかります。
+        生成を開始すると、台本→音声→実写素材の用意→完成見本→素材パッケージ→案件登録の順に処理されます。
+        実処理は生成用マシン（ワーカー）が拾って実行するため、反映まで少し時間がかかります。
       </p>
 
       {state.error && (
@@ -172,10 +96,10 @@ export function CreateVideoJobForm() {
 
       <button
         type="submit"
-        disabled={isPending || !implemented}
+        disabled={isPending}
         className="min-h-14 w-full rounded-2xl bg-primary text-lg font-bold text-white shadow-md transition hover:bg-primary-dark disabled:opacity-50"
       >
-        {isPending ? "登録しています…" : "AI模擬案件を作成する"}
+        {isPending ? "登録しています…" : "案件を作成する"}
       </button>
     </form>
   );

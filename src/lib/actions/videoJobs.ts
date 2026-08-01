@@ -27,20 +27,18 @@ export async function createVideoJob(
   const theme = String(formData.get("theme") ?? "").trim();
   const difficulty = Number(formData.get("difficulty") ?? 1);
   const targetDurationSec = Number(formData.get("target_duration_sec") ?? 60);
-  const templateType = String(formData.get("template_type") ?? "") as VideoTemplateType;
-  const useBroll = formData.get("use_broll") === "on";
-  const brollKeywords = String(formData.get("broll_keywords") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // ジャンル選択は廃止。実写寄りの1本立て（business_explainer）に固定する。
+  // フォームは hidden で template_type を渡すが、未指定でも既定にフォールバックする。
+  const requested = String(formData.get("template_type") ?? "") as VideoTemplateType;
+  const templateType: VideoTemplateType =
+    VIDEO_TEMPLATE_TYPES.includes(requested) && isTemplateImplemented(requested)
+      ? requested
+      : "business_explainer";
+  // 実写Bロールは既定でオン（英語キーワードUIは廃止。キーワードはテーマから裏で導出する）。
+  const useBroll = formData.get("use_broll") === "off" ? false : true;
+  const brollKeywords: string[] = [];
 
-  if (!theme) return { error: "動画のテーマを入力してください。" };
-  if (!VIDEO_TEMPLATE_TYPES.includes(templateType)) {
-    return { error: "案件ジャンルを選んでください。" };
-  }
-  if (!isTemplateImplemented(templateType)) {
-    return { error: "このジャンルは準備中のため、まだ生成できません。" };
-  }
+  if (!theme) return { error: "案件のテーマを入力してください。" };
   if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) {
     return { error: "難易度は1〜3で指定してください。" };
   }

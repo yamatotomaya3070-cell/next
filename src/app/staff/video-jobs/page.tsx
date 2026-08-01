@@ -52,11 +52,11 @@ export default async function VideoJobsPage() {
     <PageContainer>
       <h1 className="flex items-center gap-2 text-xl font-bold text-ink">
         <IconVideo className="text-primary" />
-        AI動画案件の生成
+        案件をつくる
       </h1>
       <p className="mt-1 text-sm text-ink-soft">
-        案件ジャンルとテーマを指定すると、練習案件を自動生成します。
-        台本→音声→字幕→完成見本のレンダリング→素材パッケージ化→案件登録まで工程ごとに進捗を確認できます。
+        テーマを入れるだけで、実写映像＋ナレーションの練習案件（動画・依頼書・仕様書・正解データ）を自動生成します。
+        台本→音声→実写素材→完成見本→素材パッケージ→案件登録まで工程ごとに進捗を確認できます。
       </p>
 
       <div className="mt-6">

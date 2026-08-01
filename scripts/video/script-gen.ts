@@ -79,6 +79,7 @@ export async function generateScript(
   theme: string,
   targetDurationSec: number,
   providerPreference: "auto" | "mock" = "auto",
+  caseContext?: string | null,
 ): Promise<ScriptGenResult> {
   if (providerPreference === "mock" || !process.env.GEMINI_API_KEY) {
     return { script: mockTemplateScript(templateType, theme, targetDurationSec), provider: "mock" };
@@ -86,7 +87,17 @@ export async function generateScript(
 
   let repairNote: string | undefined;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const prompt = buildScriptPrompt(templateType, theme, targetDurationSec, repairNote);
+    const basePrompt = buildScriptPrompt(templateType, theme, targetDurationSec, repairNote);
+    const prompt = caseContext?.trim()
+      ? `${basePrompt}
+
+追加の実案件コンテキスト:
+"""
+${caseContext.trim().slice(0, 12000)}
+"""
+
+上記はクラウドワークス等の実案件から抽出した要件です。テーマだけで一般的な説明動画にせず、案件文にある納品形式、尺、媒体、編集ルール、修正されやすい点、クライアントが期待する完成像を台本・画面構成・editingInstructionsへ反映してください。実在の固有名詞、URL、連絡先、報酬額は使わず、匿名化した一般表現に置き換えてください。`
+      : basePrompt;
     const json = await callGemini(prompt);
     let parsed: unknown;
     try {

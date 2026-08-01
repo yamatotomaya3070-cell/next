@@ -73,6 +73,29 @@ export interface GeneratedSourceScript {
   segments: SourceScriptSegment[];
 }
 
+/**
+ * 実案件の配布用ガイド生成リクエスト。
+ * 「別の案件を作る」のではなく、実案件そのものを就労者がこなせるように
+ * 読みやすい依頼書＋手順書＋チェックリストを用意する（CrowdWorks案件の配布用）。
+ */
+export interface GenerateCaseGuideInput {
+  caseText: string; // 実案件の依頼文（そのまま）
+  traineeNote?: string; // 利用者への配慮メモ（任意）
+}
+
+/** 実案件の配布用ガイド生成結果 */
+export interface GeneratedCaseGuide {
+  title: string; // 案件タイトル（実案件から。【練習】は付けない）
+  summary: string; // 1〜2文の平易な説明
+  skillTags: string[]; // この案件で使うスキル（推定）
+  difficulty: number; // 1〜5（推定）
+  estimatedMinutes: number;
+  // 実案件を就労者向けに読みやすく整形した依頼書（要求内容は変えない・ふりがな付き）
+  readableRequestDoc: string;
+  manualSteps: ManualStep[]; // この案件のやり方（手順書）
+  selfCheckItems: string[]; // 納品前チェック項目
+}
+
 /** 提出物の採点リクエスト */
 export interface GradeSubmissionInput {
   taskTitle: string;
@@ -97,6 +120,7 @@ export interface AiProvider {
   name: "gemini" | "mock";
   generateTask(input: GenerateTaskInput): Promise<GeneratedTask>;
   generateSimilarCase(input: GenerateSimilarCaseInput): Promise<GeneratedSimilarCase>;
+  generateCaseGuide(input: GenerateCaseGuideInput): Promise<GeneratedCaseGuide>;
   generateSourceScript(input: GenerateSourceScriptInput): Promise<GeneratedSourceScript>;
   gradeSubmission(input: GradeSubmissionInput): Promise<GradeResult>;
 }

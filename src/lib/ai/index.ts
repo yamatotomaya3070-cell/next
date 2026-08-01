@@ -2,6 +2,8 @@ import { geminiProvider } from "./gemini";
 import { mockProvider } from "./mock";
 import type {
   AiProvider,
+  GenerateCaseGuideInput,
+  GeneratedCaseGuide,
   GenerateSimilarCaseInput,
   GenerateSourceScriptInput,
   GeneratedSimilarCase,
@@ -52,6 +54,27 @@ export async function generateSimilarCase(
     if (provider.name === "gemini") {
       console.error("Gemini 模擬案件生成に失敗。モックにフォールバックします:", err);
       const result = await mockProvider.generateSimilarCase(input);
+      return { ...result, provider: "mock(fallback)" };
+    }
+    throw err;
+  }
+}
+
+/**
+ * 実案件の配布用ガイド生成（CrowdWorks案件）。案件内容は変えず、就労者向けの
+ * 読みやすい依頼書＋手順書＋チェックリストを用意する。Gemini 失敗時はモックにフォールバック。
+ */
+export async function generateCaseGuide(
+  input: GenerateCaseGuideInput,
+): Promise<GeneratedCaseGuide & { provider: string }> {
+  const provider = activeProvider();
+  try {
+    const result = await provider.generateCaseGuide(input);
+    return { ...result, provider: provider.name };
+  } catch (err) {
+    if (provider.name === "gemini") {
+      console.error("Gemini ガイド生成に失敗。モックにフォールバックします:", err);
+      const result = await mockProvider.generateCaseGuide(input);
       return { ...result, provider: "mock(fallback)" };
     }
     throw err;

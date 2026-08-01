@@ -267,6 +267,8 @@ export interface VideoJob {
   difficulty: number;
   target_duration_sec: number;
   template_type: VideoTemplateType;
+  source_case_id: string | null;
+  case_context: string | null;
   status: VideoJobStatus;
   progress: number;
   script: unknown;

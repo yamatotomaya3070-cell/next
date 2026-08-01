@@ -27,6 +27,8 @@ export async function createVideoJob(
   const theme = String(formData.get("theme") ?? "").trim();
   const difficulty = Number(formData.get("difficulty") ?? 1);
   const targetDurationSec = Number(formData.get("target_duration_sec") ?? 60);
+  const sourceCaseId = String(formData.get("source_case_id") ?? "").trim();
+  const rawCaseContext = String(formData.get("case_context") ?? "").trim();
   // ジャンル選択は廃止。実写寄りの1本立て（business_explainer）に固定する。
   // フォームは hidden で template_type を渡すが、未指定でも既定にフォールバックする。
   const requested = String(formData.get("template_type") ?? "") as VideoTemplateType;
@@ -37,6 +39,34 @@ export async function createVideoJob(
   // 実写Bロールは既定でオン（英語キーワードUIは廃止。キーワードはテーマから裏で導出する）。
   const useBroll = formData.get("use_broll") === "off" ? false : true;
   const brollKeywords: string[] = [];
+  let caseContext = rawCaseContext ? `職員が入力した実案件メモ:\n${rawCaseContext}` : "";
+
+  if (sourceCaseId) {
+    const { data: sourceCase, error: sourceCaseError } = await supabase
+      .from("case_knowledge")
+      .select("id, title, genre, skill_tags, difficulty, caution_points, masked_case_text")
+      .eq("id", sourceCaseId)
+      .maybeSingle();
+    if (sourceCaseError) {
+      return { error: "参照する実案件の取得に失敗しました。" };
+    }
+    if (!sourceCase) {
+      return { error: "参照する実案件が見つかりません。" };
+    }
+    caseContext = [
+      `保存済み実案件: ${sourceCase.title}`,
+      sourceCase.genre ? `ジャンル: ${sourceCase.genre}` : null,
+      Array.isArray(sourceCase.skill_tags) && sourceCase.skill_tags.length > 0
+        ? `必要スキル: ${sourceCase.skill_tags.join(", ")}`
+        : null,
+      sourceCase.difficulty ? `実案件から見た難易度: ${sourceCase.difficulty}` : null,
+      Array.isArray(sourceCase.caution_points) && sourceCase.caution_points.length > 0
+        ? `注意点:\n${sourceCase.caution_points.map((p) => `- ${p}`).join("\n")}`
+        : null,
+      `匿名化済み案件文:\n${sourceCase.masked_case_text}`,
+      rawCaseContext ? `追加メモ:\n${rawCaseContext}` : null,
+    ].filter(Boolean).join("\n\n");
+  }
 
   if (!theme) return { error: "案件のテーマを入力してください。" };
   if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) {
@@ -53,6 +83,8 @@ export async function createVideoJob(
     template_type: templateType,
     use_broll: useBroll,
     broll_keywords: brollKeywords,
+    source_case_id: sourceCaseId || null,
+    case_context: caseContext || null,
     status: "pending",
     created_by: staff.id,
   });

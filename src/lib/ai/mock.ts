@@ -1,5 +1,7 @@
 import type {
   AiProvider,
+  GenerateCaseGuideInput,
+  GeneratedCaseGuide,
   GenerateSimilarCaseInput,
   GenerateSourceScriptInput,
   GeneratedSimilarCase,
@@ -113,6 +115,36 @@ export const mockProvider: AiProvider = {
         "最初から最後まで一度見直した",
         "音量がうるさすぎず、小さすぎない",
       ],
+    };
+  },
+
+  async generateCaseGuide(input: GenerateCaseGuideInput): Promise<GeneratedCaseGuide> {
+    // モック: 実案件テキストはそのまま依頼書に載せ（軽い匿名化のみ）、汎用の手順書を返す。
+    const { masked } = maskCaseText(input.caseText);
+    const skillTags = estimateSkillTags(input.caseText);
+    const base = await this.generateTask({
+      theme: "受注した動画編集の案件",
+      difficulty: 3,
+      skillTags,
+      traineeNote: input.traineeNote,
+    });
+    return {
+      title: "受注案件（動画編集）",
+      summary: "実際に受注した動画編集のお仕事です。手順書を見ながら進めましょう。",
+      skillTags,
+      difficulty: 3,
+      estimatedMinutes: base.estimatedMinutes,
+      readableRequestDoc: [
+        `## お仕事《しごと》の依頼書《いらいしょ》`,
+        ``,
+        `実際《じっさい》に届《とど》いた依頼《いらい》の内容《ないよう》です。`,
+        ``,
+        masked,
+        ``,
+        `わからないことがあれば、遠慮《えんりょ》なく質問《しつもん》してください。`,
+      ].join("\n"),
+      manualSteps: base.manualSteps,
+      selfCheckItems: base.selfCheckItems,
     };
   },
 

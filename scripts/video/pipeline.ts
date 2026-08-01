@@ -52,6 +52,7 @@ export interface PipelineInput {
   assetsDir?: string;
   provider?: "auto" | "mock";
   providedScript?: AnyVideoScript;
+  caseContext?: string | null;
   /** 背景を実写Bロール動画にする（PEXELS_API_KEY未設定なら自動で無効化し静止画にフォールバック） */
   useBroll?: boolean;
   /** Bロール検索キーワード（未指定なら theme を使用）。英語のほうが実写がヒットしやすい */
@@ -122,7 +123,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineOutput>
     }
     script = revalidated.script;
   } else {
-    const generated = await generateScript(templateType, input.theme, input.targetDurationSec, input.provider ?? "auto");
+    const generated = await generateScript(
+      templateType,
+      input.theme,
+      input.targetDurationSec,
+      input.provider ?? "auto",
+      input.caseContext,
+    );
     script = generated.script;
     provider = generated.provider;
     writeFileSync(scriptPath, JSON.stringify(script, null, 2), "utf8");

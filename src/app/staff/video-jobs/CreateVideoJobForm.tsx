@@ -12,11 +12,64 @@ const initialState: ActionState = { error: null };
 // ジャンル選択はやめ、テーマを入れれば実写Bロール＋ナレーション構成で自動生成する。
 const TEMPLATE: VideoTemplateType = "business_explainer";
 
-export function CreateVideoJobForm() {
+export interface VideoCaseOption {
+  id: string;
+  title: string;
+  genre: string | null;
+}
+
+const QUICK_CASE_CONTEXT = `クラウドワークス等でよくある動画編集案件を想定する。
+- 依頼内容: SNSまたはYouTube向けの短尺PR/解説動画を編集する
+- 必要な構成: 冒頭の引き、要点整理、Bロール、テロップ、BGM、締めのCTA
+- 納品形式: MP4、指定尺、スマホでも読みやすいテロップ
+- 修正されやすい点: テロップの誤字、尺のズレ、BGM音量、テンポ不足、訴求の弱さ
+- 練習目的: 実案件の依頼文から動画構成を読み取り、完成見本に近づける`;
+
+export function CreateVideoJobForm({ caseOptions = [] }: { caseOptions?: VideoCaseOption[] }) {
   const [state, formAction, isPending] = useActionState(createVideoJob, initialState);
   const config = TEMPLATE_REGISTRY[TEMPLATE];
+  const latestCase = caseOptions[0];
 
   return (
+    <div className="space-y-5">
+      <form action={formAction} className="rounded-2xl border-2 border-primary/30 bg-primary-soft p-5">
+        <input type="hidden" name="template_type" value={TEMPLATE} />
+        <input
+          type="hidden"
+          name="theme"
+          value={latestCase ? latestCase.title : "クラウドワークス実案件を想定した動画編集練習"}
+        />
+        <input type="hidden" name="difficulty" value={config.defaultDifficulty} />
+        <input type="hidden" name="target_duration_sec" value={config.durationRange.default} />
+        <input type="hidden" name="use_broll" value="on" />
+        {latestCase ? (
+          <input type="hidden" name="source_case_id" value={latestCase.id} />
+        ) : (
+          <input type="hidden" name="case_context" value={QUICK_CASE_CONTEXT} />
+        )}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-bold text-ink">AI動画を1クリック生成</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              {latestCase
+                ? `最新の保存済み実案件「${latestCase.title}」をもとに、台本・音声・完成見本・教材を作ります。`
+                : "保存済み実案件がないため、クラウドワークス実案件で多い要件をもとに作ります。"}
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="min-h-14 rounded-2xl bg-primary px-6 text-lg font-bold text-white shadow-md transition hover:bg-primary-dark disabled:opacity-50"
+          >
+            {isPending ? "生成を登録中..." : "AI動画を生成"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-ink-soft">
+          生成は職員のパソコンが裏側で処理するため、案件一覧に反映されるまで数分ほど時間がかかります。
+          実写映像背景は Pexels のAPIキー設定が済むまでは静止画背景になります。
+        </p>
+      </form>
+
     <form action={formAction} className="space-y-4 rounded-2xl border border-line bg-surface p-5">
       {/* ジャンルは固定（実写Bロール＋ナレーション）。フォームには出さず内部で指定する。 */}
       <input type="hidden" name="template_type" value={TEMPLATE} />
@@ -102,5 +155,6 @@ export function CreateVideoJobForm() {
         {isPending ? "登録しています…" : "案件を作成する"}
       </button>
     </form>
+    </div>
   );
 }

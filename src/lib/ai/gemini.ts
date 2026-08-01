@@ -1,5 +1,7 @@
 import type {
   AiProvider,
+  GenerateCaseGuideInput,
+  GeneratedCaseGuide,
   GenerateSimilarCaseInput,
   GenerateSourceScriptInput,
   GenerateTaskInput,
@@ -15,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /** AI利用ログの用途区分（コスト集計の内訳に使う） */
-type AiUsageKind = "task" | "similar_case" | "mask" | "source_script" | "grade";
+type AiUsageKind = "task" | "similar_case" | "mask" | "source_script" | "grade" | "case_guide";
 
 /**
  * Gemini のトークン使用量を ai_usage_logs へ記録する（コスト可視化用）。
@@ -238,6 +240,57 @@ JSONスキーマ:
     if (!parsed.title || !parsed.requestDoc || !Array.isArray(parsed.manualSteps)) {
       throw new Error("Gemini の応答が期待した形式ではありません");
     }
+    return parsed;
+  },
+
+  async generateCaseGuide(input: GenerateCaseGuideInput): Promise<GeneratedCaseGuide> {
+    // 実案件そのものを配布するためのガイド生成。案件内容は変えず、
+    // 就労者が読みやすい依頼書＋この案件のやり方（手順書）＋チェックリストを用意する。
+    const prompt = `あなたはクラウドワークス等の動画編集案件を熟知したディレクター兼、就労支援施設の講師です。
+以下は実際に受注した動画編集案件の依頼文です。これを施設の利用者（動画編集が未経験の方）が実際にこなせるよう、配布用の資料を作ってください。
+重要: 案件の内容・要求（作業内容・尺・形式・テロップ等のルール・納期）は変えないこと。別の案件を作ってはいけません。読みやすく整えるだけです。
+
+実案件の依頼文:
+"""
+${input.caseText}
+"""
+${input.traineeNote ? `\n利用者への配慮メモ: ${input.traineeNote}\n` : ""}
+作るもの:
+1. readableRequestDoc: 上の依頼文を、利用者向けに読みやすく整えた依頼書（Markdown）。
+   ${REQUEST_DOC_GUIDANCE}
+   ただし今回は「実案件を整形する」ことが目的。依頼文に書かれた要求は忠実に残し、書かれていない仕様は「要確認事項」に回す（勝手に創作しない）。
+   実在の企業名・個人名・連絡先・URLが依頼文に含まれる場合は「あるお店」「依頼者」等に置き換える。
+2. manualSteps: この案件をこなすための操作手順書（5〜12ステップ）。各ステップに text と tip（コツや励まし、なければnull）。
+   ${MANUAL_GUIDANCE}
+3. selfCheckItems: 納品前セルフチェック項目（4〜6個、ふりがな不要）。依頼の指定（尺・比率・形式・テロップ・BGM等）と対応させる。
+4. title: この案件のタイトル（実案件の内容を表す短い名前。「【練習】」は付けない）。
+5. summary: 1〜2文の平易な説明。
+6. skillTags: 使うスキル。'cut','telop','bgm','volume','image','color','duration','export','revision','brief' から該当するもの。
+7. difficulty: 未経験者から見た難易度 1〜5。
+8. estimatedMinutes: 想定作業時間（分）。
+${COMMON_STYLE}
+
+JSONスキーマ:
+{
+  "title": "string",
+  "summary": "string",
+  "skillTags": ["string"],
+  "difficulty": number,
+  "estimatedMinutes": number,
+  "readableRequestDoc": "string",
+  "manualSteps": [{"text": "string", "tip": "string|null"}],
+  "selfCheckItems": ["string"]
+}`;
+
+    const json = await callGemini(prompt, "case_guide");
+    const parsed = JSON.parse(json) as GeneratedCaseGuide;
+    if (!parsed.title || !parsed.readableRequestDoc || !Array.isArray(parsed.manualSteps)) {
+      throw new Error("Gemini の応答が期待した形式ではありません");
+    }
+    if (!Array.isArray(parsed.skillTags)) parsed.skillTags = [];
+    if (!Array.isArray(parsed.selfCheckItems)) parsed.selfCheckItems = [];
+    if (!parsed.difficulty) parsed.difficulty = 3;
+    if (!parsed.estimatedMinutes) parsed.estimatedMinutes = 60;
     return parsed;
   },
 

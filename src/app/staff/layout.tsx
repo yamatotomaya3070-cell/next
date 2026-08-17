@@ -16,7 +16,7 @@ const STAFF_NAV: SidebarItem[] = [
   { href: "/staff/users", label: "利用者", icon: "users" },
   { href: "/staff/tasks", label: "案件", icon: "clipboard" },
   { href: "/staff/cases/new", label: "CrowdWorks案件を配布", icon: "globe" },
-  { href: "/staff/video-jobs", label: "AI模擬案件をつくる", icon: "sparkles" },
+  { href: "/staff/scene", label: "YouTube動画生成", icon: "sparkles" },
   { href: "/staff/reviews", label: "提出レビュー", icon: "check" },
 ];
 
@@ -27,7 +27,7 @@ const TITLE_MAP: Record<string, string> = {
   "/staff/tasks": "案件",
   "/staff/tasks/new": "案件の生成",
   "/staff/cases/new": "CrowdWorks案件を配布",
-  "/staff/video-jobs": "AI模擬案件をつくる",
+  "/staff/scene": "YouTube動画生成",
   "/staff/video-ingests": "参考動画の学習",
   "/staff/reviews": "提出レビュー",
 };

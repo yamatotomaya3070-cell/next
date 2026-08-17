@@ -9,6 +9,7 @@ import type {
   TaskMaterial,
 } from "@/lib/types";
 import { Furigana } from "@/components/Furigana";
+import { MarkdownLite } from "@/components/MarkdownLite";
 import { ReadAloudButton } from "@/components/ReadAloudButton";
 import { StepViewer } from "@/components/StepViewer";
 import { WorkTimer } from "@/components/WorkTimer";
@@ -115,12 +116,10 @@ export default async function TaskDetailPage({
   const manual = materials.find((m) => m.kind === "manual");
   const script = materials.find((m) => m.kind === "script");
   const checkList = materials.find((m) => m.kind === "revision_note");
-  const hasSubmitted = submissions.length > 0;
+  // 完成見本(kind='sample')は「答え」なので利用者には見せない（スタッフ専用）。
+  // 利用者には支給素材(source_assets)のみ配布する。
   const downloadable = materials.filter(
-    (m) =>
-      (m.kind === "sample" || m.kind === "source_assets") &&
-      m.media_url &&
-      (m.kind !== "sample" || m.visible_before_submission || hasSubmitted),
+    (m) => m.kind === "source_assets" && m.media_url,
   );
   // media_url は private バケット 'materials' 内の相対パス。都度署名付きURLを発行する
   const signedDownloads = await Promise.all(
@@ -133,7 +132,6 @@ export default async function TaskDetailPage({
   );
   const samples = signedDownloads.filter((d) => d.url);
   const selfCheckItems = parseSelfCheckItems(checkList);
-  const furigana = profile.furigana_enabled;
 
   const tabs: TaskTab[] = [
     {
@@ -146,7 +144,7 @@ export default async function TaskDetailPage({
           {task.summary && (
             <SectionCard title="案件の概要">
               <p className="text-[15px] leading-relaxed text-ink">
-                <Furigana text={task.summary} enabled={furigana} />
+                <Furigana text={task.summary} />
               </p>
             </SectionCard>
           )}
@@ -159,9 +157,10 @@ export default async function TaskDetailPage({
               </div>
             )}
             {requestDoc?.content ? (
-              <p className="whitespace-pre-wrap text-[16px] leading-loose text-ink">
-                <Furigana text={requestDoc.content} enabled={furigana} />
-              </p>
+              <MarkdownLite
+                text={requestDoc.content}
+                omitLeadingHeading={requestDoc.title}
+              />
             ) : (
               <p className="text-ink-soft">依頼書は準備中です。</p>
             )}
@@ -209,7 +208,6 @@ export default async function TaskDetailPage({
         <div className="space-y-5">
           <StepViewer
             steps={manual?.steps ?? []}
-            furiganaEnabled={furigana}
             stepModeEnabled={profile.step_mode_enabled}
             readAloudEnabled={profile.read_aloud_enabled}
           />
@@ -254,7 +252,6 @@ export default async function TaskDetailPage({
           <FeedbackView
             feedbacks={feedbacks}
             hasSubmission={submissions.length > 0}
-            furiganaEnabled={furigana}
           />
           <SectionCard title="質問する">
             <QuestionForm assignmentId={assignment.id} />

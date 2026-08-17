@@ -2,6 +2,8 @@ import type {
   AiProvider,
   GenerateCaseGuideInput,
   GeneratedCaseGuide,
+  GeneratePracticeScriptInput,
+  GeneratedPracticeScriptResult,
   GenerateSimilarCaseInput,
   GenerateSourceScriptInput,
   GeneratedSimilarCase,
@@ -10,8 +12,12 @@ import type {
   GeneratedTask,
   GradeResult,
   GradeSubmissionInput,
+  ProposeStyleGuidesInput,
+  StyleGuideProposal,
 } from "./types";
 import { SKILL_TAG_LABELS } from "@/lib/types";
+import { normalizeStyleGuide } from "@/lib/style-guide/schema";
+import { normalizePracticeScript } from "@/lib/practice-script/schema";
 
 /** 決定的な簡易マスキング（モック用。本番はAI+職員確認で行う） */
 function maskCaseText(raw: string): { masked: string; removedItems: string[] } {
@@ -50,12 +56,85 @@ function estimateSkillTags(raw: string): string[] {
 export const mockProvider: AiProvider = {
   name: "mock",
 
+  async proposeStyleGuides(input: ProposeStyleGuidesInput): Promise<StyleGuideProposal> {
+    const charCount =
+      input.characterCount && input.characterCount >= 1 && input.characterCount <= 4
+        ? Math.floor(input.characterCount)
+        : 2;
+    const count = input.count && input.count >= 1 && input.count <= 5 ? Math.floor(input.count) : 3;
+
+    // 3種の異なる方向性のプリセット（実APIキー未設定時のフォールバック用）。
+    // normalizeStyleGuide を通すのでキャラ数調整・HEX検証は自動で担保される。
+    const presets = [
+      {
+        name: "つなぐ雑学ラボ",
+        artStyle: "やわらかいアニメ調。パステル寄りのフラット塗り、線は細め。",
+        client: {
+          channelName: "つなぐ雑学ラボ",
+          clientName: "ラボ長",
+          persona: "毎回きさくに『いつもありがとう！』と声をかける、雑学好きの個人YouTuber。",
+          audience: "通勤・休憩中にスマホで見る幅広い年代",
+        },
+        palette: { background: "#F4F7FB", primary: "#1677E8", accent: "#FFB020", telopOutline: "#1B2A4A" },
+        seriesVoice: "やさしく丁寧。専門用語は必ず言い換える初心者ファースト。",
+      },
+      {
+        name: "ナイトモード雑談",
+        artStyle: "落ち着いたダーク調のアニメ塗り。ネオンのアクセントを効かせる。",
+        client: {
+          channelName: "ナイトモード雑談",
+          clientName: "ナイト",
+          persona: "深夜にゆるく語る系の個人YouTuber。落ち着いた口調で細かく指定する。",
+          audience: "夜にゆっくり視聴する20〜30代",
+        },
+        palette: { background: "#161A24", primary: "#7C5CFF", accent: "#33E0C0", telopOutline: "#0A0D14" },
+        seriesVoice: "落ち着いた語り口。テンポはゆっくりめ、余白を大切にする。",
+      },
+      {
+        name: "ポップ解説チャンネル",
+        artStyle: "彩度高めのポップなアニメ調。太い輪郭で元気な印象。",
+        client: {
+          channelName: "ポップ解説チャンネル",
+          clientName: "ポプ子",
+          persona: "テンション高めで前向きな個人YouTuber。『サクッといきましょう！』が口ぐせ。",
+          audience: "テンポの良い動画を好む若年層",
+        },
+        palette: { background: "#FFF6E9", primary: "#FF5A5F", accent: "#00B8D9", telopOutline: "#2A1A3A" },
+        seriesVoice: "明るくテンポよく。要点を短く歯切れよく伝える。",
+      },
+    ];
+
+    const characters = Array.from({ length: charCount }, (_, i) => ({
+      key: `char_${i + 1}`,
+      name: i === 0 ? "アオ" : i === 1 ? "ミドリ" : `キャラ${i + 1}`,
+      role: i === 0 ? "進行役" : "解説役",
+    }));
+
+    const guides = presets.slice(0, count).map((p) =>
+      normalizeStyleGuide({
+        name: p.name,
+        artStyle: p.artStyle,
+        client: p.client,
+        palette: p.palette,
+        seriesVoice: p.seriesVoice,
+        characters,
+      }),
+    );
+    return { guides };
+  },
+
   async generateTask(input: GenerateTaskInput): Promise<GeneratedTask> {
     const skills = input.skillTags
       .map((t) => SKILL_TAG_LABELS[t] ?? t)
       .join("・");
     const minutes = 40 + input.difficulty * 20;
     const hasTelop = input.skillTags.includes("telop");
+    const hasBgm = input.skillTags.includes("bgm");
+    // 縦長ジャンルの簡易判定（決定的）。該当しなければ横長16:9。
+    const isVertical = /(tiktok|ティックトック|reel|リール|ショート|short|縦)/i.test(
+      `${input.theme} ${input.genre ?? ""}`,
+    );
+    const durationSec = 45 + input.difficulty * 10;
 
     return {
       title: `【練習】${input.theme}`,
@@ -63,40 +142,76 @@ export const mockProvider: AiProvider = {
       estimatedMinutes: minutes,
       dueInDays: 2 + input.difficulty,
       requestDoc: [
-        `## お仕事《しごと》の依頼書《いらいしょ》（練習用《れんしゅうよう》）`,
+        `━━━━━━━━━━━━`,
+        `依頼文`,
+        `━━━━━━━━━━━━`,
+        `お世話になります。「${input.theme}」の動画を作っていただきたく、ご連絡しました。`,
+        `見てくれた人に内容がやさしく伝わる、明るい雰囲気の動画にしたいです。よろしくお願いします。`,
         ``,
-        `お世話《せわ》になります。動画《どうが》の編集《へんしゅう》をお願《ねが》いします。`,
+        `━━━━━━━━━━━━`,
+        `案件仕様書`,
+        `━━━━━━━━━━━━`,
         ``,
-        `### やってほしいこと`,
-        `- テーマ: ${input.theme}`,
-        `- 使《つか》うスキル: ${skills}`,
-        `- 完成《かんせい》までの目安《めやす》: 約${minutes}分`,
+        `【1. この動画について】`,
+        `・目的：「${input.theme}」をわかりやすく伝える`,
+        `・見る人：はじめてこの話題にふれる一般の方`,
+        `・載せる場所：${isVertical ? "TikTok・Instagramリール" : "YouTube"}`,
+        `・雰囲気：明るく、やさしい`,
         ``,
-        `### 納品《のうひん》について`,
-        `- 形式《けいしき》: MP4（1920x1080）`,
-        `- ファイル名《めい》: 「kadai_名前.mp4」`,
+        `【2. 納品するもの（動画の仕様）】`,
+        `・長さ：${durationSec}秒（±5秒までOK）`,
+        `・画面比率：${isVertical ? "9:16（縦長）" : "16:9（横長）"}`,
+        `・解像度：${isVertical ? "1080×1920" : "1920×1080"}`,
+        `・なめらかさ：30fps`,
+        `・ファイル形式：MP4（H.264）`,
+        `・ファイル名：例）kadai_太郎.mp4`,
         ``,
-        `わからないことがあれば、遠慮《えんりょ》なく質問《しつもん》してください。`,
+        `【3. 使う素材】`,
+        `・支給される素材：練習用の素材フォルダにある動画・画像`,
+        `・自分で用意する素材：${hasBgm ? "BGM・効果音（商用利用OKの無料素材を使う）" : "なし"}`,
+        ``,
+        `【4. 編集のルール】`,
+        `・テロップ：${hasTelop ? "大事な言葉に入れる。画面下の中央、読みやすい大きさ、1つ2〜3秒表示" : "今回は入れなくてよい"}`,
+        `・カットとテンポ：不要な間や言い間違いを削る。目安は1分あたり8〜12カット`,
+        `・音の大きさ：声がはっきり聞こえるように。うるさすぎ・小さすぎを避ける`,
+        `・BGM・効果音：${hasBgm ? "明るいBGMを小さめに。声のじゃまをしない" : "なし"}`,
+        `・はじめと終わり：短いタイトルを最初に、最後に「おわり」を入れる`,
+        `・場面の切り替え：はやい切り替えは使わず、そのままつなぐ`,
+        ``,
+        `【5. やること・やらないこと】`,
+        `・やること：素材の確認、カット、${hasTelop ? "テロップ、" : ""}${hasBgm ? "BGM、" : ""}音量調整、書き出し`,
+        `・やらないこと：サムネイル作成、素材の撮影`,
+        ``,
+        `【6. 参考】`,
+        `・同じ話題の、テロップが大きく読みやすい動画をイメージ。派手な演出より「伝わりやすさ」を大切に`,
+        ``,
+        `【7. 納品】`,
+        `・納期：${2 + input.difficulty}日以内`,
+        `・出し方：このアプリの「提出」から動画をアップロード`,
+        ``,
+        `【8. 確認したいこと】`,
+        `・BGMの雰囲気は、明るめと落ち着いた感じのどちらがよいですか？`,
+        `・テロップの色に決まりはありますか？`,
       ].join("\n"),
       manualSteps: [
         {
-          text: "依頼書《いらいしょ》を最後《さいご》まで読《よ》みます。",
+          text: "依頼書を最後まで読みます。",
           tip: "わからない言葉があったら「質問する」ボタンで聞いてください。",
         },
         {
-          text: "編集《へんしゅう》ソフトを開《ひら》いて、素材《そざい》を読《よ》み込《こ》みます。",
+          text: "編集ソフトを開いて、素材を読み込みます。",
           tip: "素材ファイルはデスクトップの「練習素材」フォルダにあります。",
         },
         {
-          text: `${input.theme}の作業《さぎょう》を、依頼書のとおりに進《すす》めます。`,
+          text: `${input.theme}の作業を、依頼書のとおりに進めます。`,
           tip: "一度にぜんぶやらなくて大丈夫です。少しずつ進めましょう。",
         },
         {
-          text: "できあがったら、全体《ぜんたい》を一度《いちど》見直《みなお》します。",
+          text: "できあがったら、全体を一度見直します。",
           tip: "チェックリストを使うと見直しがしやすいです。",
         },
         {
-          text: "MP4形式《けいしき》で書《か》き出《だ》して、提出《ていしゅつ》します。",
+          text: "MP4形式で書き出して、提出します。",
           tip: "書き出し中は休憩してもOKです。",
         },
       ],
@@ -109,11 +224,13 @@ export const mockProvider: AiProvider = {
           ].join("\n")
         : null,
       selfCheckItems: [
-        "依頼書に書いてある長さになっている",
-        "指定されたファイル形式（MP4）で書き出した",
-        "ファイル名を指定どおりにつけた",
+        `長さは約${durationSec}秒（±5秒）におさまっている`,
+        `画面比率と解像度が指定どおり（${isVertical ? "9:16 / 1080×1920" : "16:9 / 1920×1080"}）`,
+        "MP4（H.264）で書き出した",
+        "ファイル名を指定のルールでつけた",
+        ...(hasTelop ? ["テロップの誤字・脱字がなく、読みやすい大きさ・位置になっている"] : []),
+        "声がはっきり聞こえ、音量がうるさすぎず小さすぎない",
         "最初から最後まで一度見直した",
-        "音量がうるさすぎず、小さすぎない",
       ],
     };
   },
@@ -135,13 +252,21 @@ export const mockProvider: AiProvider = {
       difficulty: 3,
       estimatedMinutes: base.estimatedMinutes,
       readableRequestDoc: [
-        `## お仕事《しごと》の依頼書《いらいしょ》`,
-        ``,
-        `実際《じっさい》に届《とど》いた依頼《いらい》の内容《ないよう》です。`,
+        `━━━━━━━━━━━━`,
+        `依頼文`,
+        `━━━━━━━━━━━━`,
+        `実際に届いた依頼の内容です。`,
         ``,
         masked,
         ``,
-        `わからないことがあれば、遠慮《えんりょ》なく質問《しつもん》してください。`,
+        `━━━━━━━━━━━━`,
+        `作業のポイント`,
+        `━━━━━━━━━━━━`,
+        `・依頼に書かれた指定（長さ・形式・ファイル名など）は必ず守る`,
+        `・書かれていないことは、勝手に決めず「質問する」から確認する`,
+        `・提出の前にチェックリストで見直す`,
+        ``,
+        `わからないことがあれば、遠慮なく質問してください。`,
       ].join("\n"),
       manualSteps: base.manualSteps,
       selfCheckItems: base.selfCheckItems,
@@ -171,11 +296,11 @@ export const mockProvider: AiProvider = {
       skillTags,
       difficulty,
       revisionNote: [
-        "納品《のうひん》ありがとうございます。確認《かくにん》しました。",
-        "2点《てん》だけ修正《しゅうせい》をお願《ねが》いします。",
-        "1. 冒頭《ぼうとう》のあいさつの前《まえ》の無音《むおん》部分《ぶぶん》をカットしてください。",
-        "2. 最後《さいご》のテロップの表示《ひょうじ》時間《じかん》を1秒《びょう》長《なが》くしてください。",
-        "お手数《てすう》ですが、よろしくお願《ねが》いします。",
+        "納品ありがとうございます。確認しました。",
+        "2点だけ修正をお願いします。",
+        "1. 冒頭のあいさつの前の無音部分をカットしてください。",
+        "2. 最後のテロップの表示時間を1秒長くしてください。",
+        "お手数ですが、よろしくお願いします。",
       ].join("\n"),
       sampleDescription: [
         "完成見本のポイント:",
@@ -220,6 +345,98 @@ export const mockProvider: AiProvider = {
         { text: "ぜひ一度、遊びに来てください。お待ちしています。", kind: "keep", cutReason: null, silenceSeconds: null },
       ],
     };
+  },
+
+  async generatePracticeScript(
+    input: GeneratePracticeScriptInput,
+  ): Promise<GeneratedPracticeScriptResult> {
+    const sg = input.styleGuide;
+    const target = Math.round(
+      (input.targetKeepMinutes && input.targetKeepMinutes > 0 ? input.targetKeepMinutes : 10) * 60,
+    );
+    const keys = sg.characters.map((c) => c.key);
+    const speaker = (i: number) => keys[i % keys.length];
+
+    type RawSeg = {
+      speakerKey: string;
+      text: string;
+      priority: "must" | "optional";
+      cutReason: string | null;
+      estimatedSeconds: number;
+      isHook: boolean;
+    };
+    const segments: RawSeg[] = [];
+
+    // 冒頭フック（must・12秒）
+    segments.push({
+      speakerKey: speaker(0),
+      text: `きょうのテーマは「${input.theme}」。はじめての人にもわかるように、順番に説明していきます。`,
+      priority: "must",
+      cutReason: null,
+      estimatedSeconds: 12,
+      isHook: true,
+    });
+
+    // 本筋（must）を約40秒ずつ、target に達するまで詰める
+    const MUST_CHUNK = 40;
+    let mustFilled = 12;
+    let idx = 1;
+    while (mustFilled < target) {
+      const secs = Math.min(MUST_CHUNK, target - mustFilled);
+      if (secs < 5) break;
+      segments.push({
+        speakerKey: speaker(idx),
+        text: `${input.theme}のポイント その${idx}について、具体的に話します。ここは本筋なので必ず残します。`,
+        priority: "must",
+        cutReason: null,
+        estimatedSeconds: secs,
+        isHook: false,
+      });
+      mustFilled += secs;
+      idx += 1;
+    }
+
+    // 切る候補（optional）を約0.4×target 分。理由を循環させる
+    const cutReasons = ["filler", "tangent", "redundant", "weak", "ng"] as const;
+    const optionalTexts = [
+      "えーっと、あのー、ちょっと言葉に詰まってしまいました。",
+      "そういえば昨日の晩ごはんの話なんですけど、これは本筋と関係ないですね。",
+      "さっきも同じことを言いましたが、もう一度くり返します。",
+      "この部分は、あってもなくても大丈夫なゆるい雑談です。",
+      "すみません、今のは失敗テイクです。使わないでください。",
+    ];
+    const optionalTarget = Math.round(target * 0.4);
+    const OPT_CHUNK = 24;
+    let optFilled = 0;
+    let oi = 0;
+    while (optFilled < optionalTarget) {
+      const secs = Math.min(OPT_CHUNK, optionalTarget - optFilled);
+      if (secs < 5) break;
+      segments.push({
+        speakerKey: speaker(oi),
+        text: optionalTexts[oi % optionalTexts.length],
+        priority: "optional",
+        cutReason: cutReasons[oi % cutReasons.length],
+        estimatedSeconds: secs,
+        isHook: false,
+      });
+      optFilled += secs;
+      oi += 1;
+    }
+
+    return normalizePracticeScript(
+      {
+        title: `${sg.client.channelName} 次回動画の編集`,
+        episodeTitle: input.theme,
+        clientMessage:
+          `いつもありがとうございます。次回の動画「${input.theme}」の編集をお願いします。\n` +
+          `いつもどおり、いらない部分はカットして、テンポよく仕上げてもらえたら助かります。よろしくお願いします。\n${sg.client.clientName}`,
+        scenario: `${sg.client.channelName}の通常回。素材には残す本筋と、切る候補（雑談・言いよどみ・重複・失敗テイク）が混在しています。`,
+        segments,
+      },
+      sg,
+      target,
+    );
   },
 
   async gradeSubmission(input: GradeSubmissionInput): Promise<GradeResult> {

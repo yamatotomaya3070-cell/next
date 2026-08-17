@@ -1,4 +1,22 @@
 import type { FeedbackCriterion, ManualStep, SelfCheckItem } from "@/lib/types";
+import type { StyleGuideContent } from "@/lib/style-guide/schema";
+import type { GeneratedPracticeScript } from "@/lib/practice-script/schema";
+
+/**
+ * スタイルガイド案の生成リクエスト。テーマは未定で構わない。
+ * 建前＝「1人のYouTuberから長期的に編集を請け負う」ため、
+ * 担当チャンネルの方向性（brief）から複数案を提案し、管理者が選択・編集・確定する。
+ */
+export interface ProposeStyleGuidesInput {
+  brief: string; // 管理者が伝えるチャンネルの方向性（自由記述。空でも可）
+  characterCount?: number; // 希望キャラ数（1-4）。未指定なら2
+  count?: number; // 提案数（既定3）
+}
+
+/** スタイルガイド案（複数提案。中身は StyleGuideContent） */
+export interface StyleGuideProposal {
+  guides: StyleGuideContent[];
+}
 
 /** 練習教材の生成リクエスト */
 export interface GenerateTaskInput {
@@ -17,7 +35,7 @@ export interface GeneratedTask {
   summary: string;
   estimatedMinutes: number;
   dueInDays: number;
-  requestDoc: string; // 模擬依頼書（Markdown、ふりがな 漢字《かんじ》 記法）
+  requestDoc: string; // 模擬依頼書（生テキスト、ふりがなは付けない）
   manualSteps: ManualStep[]; // 手順書（一工程ずつ）
   script: string | null; // 字幕用台本（テロップ課題のみ）
   selfCheckItems: string[]; // 納品前セルフチェック項目
@@ -90,11 +108,28 @@ export interface GeneratedCaseGuide {
   skillTags: string[]; // この案件で使うスキル（推定）
   difficulty: number; // 1〜5（推定）
   estimatedMinutes: number;
-  // 実案件を就労者向けに読みやすく整形した依頼書（要求内容は変えない・ふりがな付き）
+  // 実案件を就労者向けに読みやすく整形した依頼書（要求内容は変えない・ふりがなは付けない）
   readableRequestDoc: string;
   manualSteps: ManualStep[]; // この案件のやり方（手順書）
   selfCheckItems: string[]; // 納品前チェック項目
 }
+
+/**
+ * 練習用素材台本の生成リクエスト（Stage2）。
+ * 完成品ではなく「編集前のバラバラ素材一式」の元になる台本を作る。
+ * priority(must/optional) 付きで、must合計≒完成尺・全体1.3〜1.5倍・冒頭15秒フックを狙う。
+ * 建前は「常連YouTuber(styleGuide.client)からの次回動画の依頼」。
+ */
+export interface GeneratePracticeScriptInput {
+  styleGuide: StyleGuideContent; // 現在有効なスタイルガイド（担当チャンネルの固定プロフィール）
+  theme: string; // その回の動画テーマ（例:「在宅ワークの始め方」）
+  difficulty: number; // 1-5。高いほど切る候補(optional)が微妙で判断が難しい
+  targetKeepMinutes?: number; // 想定完成尺（分。既定10）
+  traineeNote?: string; // 利用者への配慮メモ（任意）
+}
+
+/** 練習用素材台本の生成結果（正規化済み。schema.ts の型を再エクスポート） */
+export type GeneratedPracticeScriptResult = GeneratedPracticeScript;
 
 /** 提出物の採点リクエスト */
 export interface GradeSubmissionInput {
@@ -118,9 +153,11 @@ export interface GradeResult {
 
 export interface AiProvider {
   name: "gemini" | "mock";
+  proposeStyleGuides(input: ProposeStyleGuidesInput): Promise<StyleGuideProposal>;
   generateTask(input: GenerateTaskInput): Promise<GeneratedTask>;
   generateSimilarCase(input: GenerateSimilarCaseInput): Promise<GeneratedSimilarCase>;
   generateCaseGuide(input: GenerateCaseGuideInput): Promise<GeneratedCaseGuide>;
   generateSourceScript(input: GenerateSourceScriptInput): Promise<GeneratedSourceScript>;
+  generatePracticeScript(input: GeneratePracticeScriptInput): Promise<GeneratedPracticeScriptResult>;
   gradeSubmission(input: GradeSubmissionInput): Promise<GradeResult>;
 }

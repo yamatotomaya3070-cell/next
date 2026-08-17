@@ -352,7 +352,6 @@ export async function updateAccessibilitySettings(
   const { error } = await supabase
     .from("profiles")
     .update({
-      furigana_enabled: formData.get("furigana_enabled") === "on",
       step_mode_enabled: formData.get("step_mode_enabled") === "on",
       large_text_enabled: formData.get("large_text_enabled") === "on",
       read_aloud_enabled: formData.get("read_aloud_enabled") === "on",

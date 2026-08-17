@@ -1,0 +1,8 @@
+{
+  "lockedAt": "2026-08-14",
+  "note": "REFERENCE MASTER 確定（STEP4-5）。表情/ポーズ差分の原本。",
+  "masters": {
+    "haru": { "source": "out/haru_master_1.png", "file": "haru_MASTER.png", "chosenVariant": 1 },
+    "mina": { "source": "out/mina_master_1.png", "file": "mina_MASTER.png", "chosenVariant": 1 }
+  }
+}

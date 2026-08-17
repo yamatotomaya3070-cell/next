@@ -8,7 +8,6 @@ import { ReadAloudButton } from "./ReadAloudButton";
 
 interface StepViewerProps {
   steps: ManualStep[];
-  furiganaEnabled: boolean;
   stepModeEnabled: boolean;
   readAloudEnabled: boolean;
 }
@@ -20,7 +19,6 @@ interface StepViewerProps {
  */
 export function StepViewer({
   steps,
-  furiganaEnabled,
   stepModeEnabled,
   readAloudEnabled,
 }: StepViewerProps) {
@@ -54,11 +52,11 @@ export function StepViewer({
               {current + 1}
             </div>
             <p className="text-xl leading-relaxed text-ink">
-              <Furigana text={steps[current].text} enabled={furiganaEnabled} />
+              <Furigana text={steps[current].text} />
             </p>
             {steps[current].tip && (
               <p className="mt-4 rounded-xl bg-warning-soft p-4 text-base leading-relaxed text-amber-900">
-                💡 <Furigana text={steps[current].tip!} enabled={furiganaEnabled} />
+                💡 <Furigana text={steps[current].tip!} />
               </p>
             )}
             {readAloudEnabled && (
@@ -107,11 +105,11 @@ export function StepViewer({
               </span>
               <div>
                 <p className="text-lg leading-relaxed text-ink">
-                  <Furigana text={step.text} enabled={furiganaEnabled} />
+                  <Furigana text={step.text} />
                 </p>
                 {step.tip && (
                   <p className="mt-1 text-sm text-amber-800">
-                    💡 <Furigana text={step.tip} enabled={furiganaEnabled} />
+                    💡 <Furigana text={step.tip} />
                   </p>
                 )}
               </div>

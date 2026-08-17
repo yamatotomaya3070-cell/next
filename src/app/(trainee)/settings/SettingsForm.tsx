@@ -14,12 +14,6 @@ const TOGGLES: Array<{
   description: string;
 }> = [
   {
-    name: "furigana_enabled",
-    key: "furigana_enabled",
-    label: "ふりがなを表示する",
-    description: "漢字の上に読みがなが出ます",
-  },
-  {
     name: "step_mode_enabled",
     key: "step_mode_enabled",
     label: "手順を一つずつ表示する",

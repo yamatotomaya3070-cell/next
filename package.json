@@ -12,6 +12,7 @@
     "video:local": "tsx scripts/video/generate-video-case.ts",
     "video:inspect-worker": "tsx scripts/video/inspect-worker.ts",
     "video:ingest-worker": "tsx scripts/video/ingest-worker.ts",
+    "scene:worker": "tsx scripts/scene/worker.ts",
     "test": "vitest run"
   },
   "dependencies": {

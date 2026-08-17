@@ -299,6 +299,69 @@ export interface VideoJobEvent {
   created_at: string;
 }
 
+// --- SCENE動画案件（高品質金融解説・完全ハイブリッド）のジョブ ---
+export type SceneJobStatus =
+  | "pending"
+  | "generating_scene"
+  | "rendering_video"
+  | "building_materials"
+  | "building_manual"
+  | "registering_task"
+  | "completed"
+  | "failed";
+
+export const SCENE_JOB_STATUS_LABELS: Record<SceneJobStatus, string> = {
+  pending: "待機中",
+  generating_scene: "設計図を作成中",
+  rendering_video: "完成見本を作成中",
+  building_materials: "素材を書き出し中",
+  building_manual: "手順書を作成中",
+  registering_task: "案件を登録中",
+  completed: "完了",
+  failed: "失敗",
+};
+
+export interface SceneJobArtifacts {
+  sample_video?: string;
+  assets_zip?: string;
+}
+
+// 生成ナレッジ（動画・仕様書の不備／発音の指摘）。次回以降の生成に自動注入する。
+export interface SceneGenerationNote {
+  id: string;
+  note: string;
+  category: string | null;
+  term: string | null;
+  reading: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SceneJob {
+  id: string;
+  theme: string;
+  audience: string;
+  target_minutes: number;
+  difficulty: number;
+  status: SceneJobStatus;
+  progress: number;
+  project: unknown;
+  artifacts: SceneJobArtifacts | null;
+  error: string | null;
+  error_stage: SceneJobStatus | null;
+  retry_count: number;
+  locked_by: string | null;
+  locked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  task_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface QaLog {
   id: string;
   user_id: string;
@@ -345,6 +408,24 @@ export interface SubmissionInspection {
   locked_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type { StyleGuideContent } from "./style-guide/schema";
+
+/**
+ * シリーズ共通スタイルガイド（担当YouTuberのチャンネル固定プロフィール）。
+ * supabase/migrations/00014_style_guides.sql と対応。content は StyleGuideContent。
+ * is_active な1件を全生成工程が参照する。編集＝新バージョン追記→有効化で切替。
+ */
+export interface StyleGuideRecord {
+  id: string;
+  name: string;
+  version: number;
+  is_active: boolean;
+  content: import("./style-guide/schema").StyleGuideContent;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }

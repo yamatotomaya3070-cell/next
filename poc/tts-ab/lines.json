@@ -1,0 +1,55 @@
+{
+  "note": "ブラインドA/B用の共通台本。04の音声表現パターン(§4)と冒頭絵コンテ(§6)から抽出。ナレ2本＋会話2ターン。各providerに同一textを渡し、instructions/emotionは各アダプタが解釈する。",
+  "lines": [
+    {
+      "id": "narr_hook_reveal",
+      "kind": "narration",
+      "speaker": "narrator",
+      "text": "毎月1万円。銀行に置いた人と、NISAで積み立てた人。20年後、その差は——なんと、約171万円。",
+      "emotion": "tension→positive_surprise",
+      "delivery_style": "hook_tension→reveal",
+      "emphasis": ["1万円", "20年後", "約171万円"],
+      "pause": "「その差は——」の直後に0.6秒のため、「なんと」の前に短い間",
+      "instructions_ja": "序盤は静かに引き込むように、やや遅めで期待を持たせる。『その差は』のあとに明確な間を置き、『なんと、約171万円』は結論として一段明るく、驚きを込めて。数字はゆっくり際立たせる。",
+      "elevenlabs_tags": "[curious] ... [pause] ... [surprised]"
+    },
+    {
+      "id": "narr_caution",
+      "kind": "narration",
+      "speaker": "narrator",
+      "text": "ただし、NISAは元本保証ではありません。値動きによって、増えることも、減ることもあります。",
+      "emotion": "serious/gentle_warning",
+      "delivery_style": "caution",
+      "emphasis": ["元本保証ではありません", "減ることも"],
+      "pause": "「ただし、」の後に軽い間",
+      "instructions_ja": "落ち着いて、少し遅く低めのトーンで。脅かさず、しかし大事な注意として丁寧に。『元本保証ではありません』をはっきり強調する。",
+      "elevenlabs_tags": "[serious] [calm]"
+    },
+    {
+      "id": "conv_haru_question",
+      "kind": "conversation",
+      "speaker": "haru",
+      "voice_role": "ハル・初心者・20代男性・親しみやすい・ややテンポ速め",
+      "text": "え、ミナ先生。NISAなら絶対に儲かるってことですか！？",
+      "emotion": "surprise/curious",
+      "delivery_style": "question_naive",
+      "emphasis": ["絶対に"],
+      "pause": "-",
+      "instructions_ja": "素朴で少し前のめり、驚きと期待が混じった軽いトーン。語尾を上げて質問する。20代男性の自然な声。",
+      "elevenlabs_tags": "[excited] [questioning]"
+    },
+    {
+      "id": "conv_mina_answer",
+      "kind": "conversation",
+      "speaker": "mina",
+      "voice_role": "ミナ先生・解説・20代後半〜30代前半女性・落ち着き・信頼感",
+      "text": "そこは、かなり勘違いされやすいポイントだよ。",
+      "emotion": "calm_warm/gentle_warning",
+      "delivery_style": "explain_calm",
+      "emphasis": ["勘違いされやすい"],
+      "pause": "「そこは、」の後に軽い間",
+      "instructions_ja": "落ち着いた先生の口調で、優しく諭すように。相手を否定せず、大事なポイントを丁寧に。重要語を明瞭に。",
+      "elevenlabs_tags": "[warm] [calm]"
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import type {
   AiProvider,
   GenerateCaseGuideInput,
   GeneratedCaseGuide,
+  GeneratePracticeScriptInput,
+  GeneratedPracticeScriptResult,
   GenerateSimilarCaseInput,
   GenerateSourceScriptInput,
   GeneratedSimilarCase,
@@ -12,12 +14,32 @@ import type {
   GeneratedTask,
   GradeResult,
   GradeSubmissionInput,
+  ProposeStyleGuidesInput,
+  StyleGuideProposal,
 } from "./types";
 
 export type * from "./types";
 
 function activeProvider(): AiProvider {
   return process.env.GEMINI_API_KEY ? geminiProvider : mockProvider;
+}
+
+/** スタイルガイド案の提案。Gemini 失敗時はモック（プリセット）にフォールバックする */
+export async function proposeStyleGuides(
+  input: ProposeStyleGuidesInput,
+): Promise<StyleGuideProposal & { provider: string }> {
+  const provider = activeProvider();
+  try {
+    const result = await provider.proposeStyleGuides(input);
+    return { ...result, provider: provider.name };
+  } catch (err) {
+    if (provider.name === "gemini") {
+      console.error("Gemini スタイルガイド提案に失敗。モックにフォールバックします:", err);
+      const result = await mockProvider.proposeStyleGuides(input);
+      return { ...result, provider: "mock(fallback)" };
+    }
+    throw err;
+  }
 }
 
 /** 教材生成。Gemini 失敗時はモックにフォールバックし、provider 名で判別可能にする */
@@ -93,6 +115,27 @@ export async function generateSourceScript(
     if (provider.name === "gemini") {
       console.error("Gemini 台本生成に失敗。モックにフォールバックします:", err);
       const result = await mockProvider.generateSourceScript(input);
+      return { ...result, provider: "mock(fallback)" };
+    }
+    throw err;
+  }
+}
+
+/**
+ * 練習用素材台本の生成（Stage2）。priority(must/optional)付きのバラバラ素材台本。
+ * Gemini 失敗時はモック（決定的なバランス済み台本）にフォールバック。
+ */
+export async function generatePracticeScript(
+  input: GeneratePracticeScriptInput,
+): Promise<GeneratedPracticeScriptResult & { provider: string }> {
+  const provider = activeProvider();
+  try {
+    const result = await provider.generatePracticeScript(input);
+    return { ...result, provider: provider.name };
+  } catch (err) {
+    if (provider.name === "gemini") {
+      console.error("Gemini 練習台本生成に失敗。モックにフォールバックします:", err);
+      const result = await mockProvider.generatePracticeScript(input);
       return { ...result, provider: "mock(fallback)" };
     }
     throw err;

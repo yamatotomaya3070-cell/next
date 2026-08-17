@@ -8,6 +8,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { StatusBadge, TaskTypeBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { primaryButtonClass } from "@/components/ui/buttons";
 import { IconClipboard, IconSparkles } from "@/components/ui/icons";
+import { DeleteTaskButton } from "./DeleteTaskButton";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,11 @@ const COLUMNS: DataTableColumn<TaskRow>[] = [
       </Link>
     ),
   },
+  {
+    key: "delete",
+    header: "",
+    render: (row) => <DeleteTaskButton taskId={row.task.id} title={row.task.title} />,
+  },
 ];
 
 export default async function StaffTasksPage() {
@@ -124,9 +130,9 @@ export default async function StaffTasksPage() {
           <IconClipboard className="text-primary" />
           案件管理
         </h1>
-        <Link href="/staff/tasks/new" className={primaryButtonClass}>
+        <Link href="/staff/scene" className={primaryButtonClass}>
           <IconSparkles className="size-4" />
-          模擬案件をAI生成する
+          YouTube動画を生成する
         </Link>
       </div>
 
@@ -138,7 +144,7 @@ export default async function StaffTasksPage() {
             rowKey={(row) => row.task.id}
             caption="案件一覧"
             emptyTitle="案件がまだありません"
-            emptyDescription="「模擬案件をAI生成する」から最初の案件を作成できます。"
+            emptyDescription="「YouTube動画を生成する」から最初の案件を作成できます。"
           />
         </SectionCard>
       </div>

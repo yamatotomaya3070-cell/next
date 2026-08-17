@@ -4,14 +4,12 @@ import { Furigana } from "@/components/Furigana";
 interface FeedbackViewProps {
   feedbacks: Feedback[];
   hasSubmission: boolean;
-  furiganaEnabled: boolean;
 }
 
 /** 承認済みフィードバックの表示（利用者向け） */
 export function FeedbackView({
   feedbacks,
   hasSubmission,
-  furiganaEnabled,
 }: FeedbackViewProps) {
   if (feedbacks.length === 0) {
     return (
@@ -57,9 +55,7 @@ export function FeedbackView({
           <span className="text-xs text-success">てん</span>
         </div>
         <p className="text-lg font-bold leading-relaxed text-ink">
-          {latest.summary && (
-            <Furigana text={latest.summary} enabled={furiganaEnabled} />
-          )}
+          {latest.summary && <Furigana text={latest.summary} />}
         </p>
       </div>
 
@@ -72,7 +68,7 @@ export function FeedbackView({
                 key={i}
                 className="rounded-xl bg-success-soft p-3 text-ink"
               >
-                <Furigana text={point} enabled={furiganaEnabled} />
+                <Furigana text={point} />
               </li>
             ))}
           </ul>
@@ -85,7 +81,7 @@ export function FeedbackView({
           <ul className="mt-2 space-y-2">
             {latest.improve_points.map((point, i) => (
               <li key={i} className="rounded-xl bg-primary-soft p-3 text-primary-dark">
-                <Furigana text={point} enabled={furiganaEnabled} />
+                <Furigana text={point} />
               </li>
             ))}
           </ul>

@@ -12,6 +12,7 @@ import {
   IconChevronLeft,
   IconClipboard,
   IconUsers,
+  IconVideo,
 } from "@/components/ui/icons";
 import { AssignForm } from "./AssignForm";
 
@@ -61,6 +62,31 @@ export default async function StaffTaskDetailPage({
   const unassigned = trainees.filter((t) => !assignedUserIds.has(t.id));
   const allApproved =
     materials.length > 0 && materials.every((m) => m.is_approved);
+
+  // 完成見本の動画・支給素材ZIPは private バケット 'materials' 内の相対パス。
+  // 職員が配布詳細ページ上で確認できるよう、都度署名付きURLを発行する。
+  const mediaEntries = await Promise.all(
+    materials
+      .filter((m) => m.media_url)
+      .map(async (m) => {
+        const { data } = await supabase.storage
+          .from("materials")
+          .createSignedUrl(m.media_url!, 60 * 60);
+        return [m.id, data?.signedUrl ?? null] as const;
+      }),
+  );
+  const mediaUrlByMaterialId = new Map(
+    mediaEntries.filter((entry): entry is [string, string] => entry[1] !== null),
+  );
+  // 完成見本の動画（1本）と支給素材一式（ZIP等、複数の場合あり）
+  const sampleMaterial = materials.find((m) => m.kind === "sample");
+  const sampleUrl = sampleMaterial
+    ? mediaUrlByMaterialId.get(sampleMaterial.id)
+    : undefined;
+  const sourceAssets = materials
+    .filter((m) => m.kind === "source_assets" && mediaUrlByMaterialId.has(m.id))
+    .map((m) => ({ material: m, url: mediaUrlByMaterialId.get(m.id)! }));
+  const hasDeliverables = Boolean(sampleUrl) || sourceAssets.length > 0;
 
   return (
     <PageContainer>
@@ -116,6 +142,57 @@ export default async function StaffTaskDetailPage({
           </form>
         )}
       </div>
+
+      {/* 完成見本・支給素材一式 */}
+      {hasDeliverables && (
+        <div className="mt-6">
+          <SectionCard title="完成見本・支給素材一式" icon={<IconVideo />}>
+            <p className="text-sm text-ink-soft">
+              この案件の完成見本の動画と、就労者に配布する支給素材です。内容を確認できます。
+            </p>
+            {sampleUrl && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-bold text-ink">完成見本</p>
+                <video
+                  src={sampleUrl}
+                  controls
+                  preload="metadata"
+                  className="w-full max-w-2xl rounded-xl border border-line bg-black"
+                />
+                <div className="mt-2">
+                  <a
+                    href={sampleUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-bold text-primary hover:underline"
+                  >
+                    完成見本の動画をダウンロード
+                  </a>
+                </div>
+              </div>
+            )}
+            {sourceAssets.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-bold text-ink">支給素材一式</p>
+                <ul className="space-y-2">
+                  {sourceAssets.map(({ material, url }) => (
+                    <li key={material.id}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-primary hover:underline"
+                      >
+                        {material.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      )}
 
       {/* 資料一覧 */}
       <div className="mt-6">

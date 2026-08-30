@@ -1,13 +1,12 @@
 // visual_type = process （手順・ステップ）
-import { T, appear, easeOut, easePop, clamp, text, roundRect } from './shared.mjs';
+import { T, appear, easeOut, easePop, clamp, text, roundRect, boardBG } from './shared.mjs';
 
 const W = 1280, H = 720;
 
 export function buildProcessSVG(scene, t) {
   const rv = scene.reveal;
   const parts = [];
-  parts.push(`<defs><linearGradient id="pbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient></defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#pbg)"/>`);
+  parts.push(boardBG('pbg'));
 
   const ha = appear(t, rv.headline, 0.5);
   parts.push(text(W / 2, 120 - ha.dy, scene.headline, { anchor: 'middle', size: 42, weight: 800, opacity: ha.o }));

@@ -1,5 +1,5 @@
 // visual_type = chart （折れ線／エリア：資産推移など）
-import { T, appear, easeOut, clamp, commas, text, roundRect } from './shared.mjs';
+import { T, appear, easeOut, clamp, commas, text, roundRect, boardBG } from './shared.mjs';
 
 const W = 1280, H = 720;
 const X0 = 150, X1 = 1150, YT = 210, YB = 600;
@@ -10,9 +10,8 @@ export function buildChartSVG(scene, t) {
   const xToPx = (x) => X0 + (x / xMax) * (X1 - X0);
   const vToPx = (v) => YB - (v / yMax) * (YB - YT);
   const parts = [];
-  parts.push(`<defs><linearGradient id="cbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient>
-    ${scene.series.map((s, i) => `<linearGradient id="area${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.color}" stop-opacity="0.35"/><stop offset="1" stop-color="${s.color}" stop-opacity="0"/></linearGradient>`).join('')}</defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#cbg)"/>`);
+  parts.push(boardBG('cbg'));
+  parts.push(`<defs>${scene.series.map((s, i) => `<linearGradient id="area${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.color}" stop-opacity="0.35"/><stop offset="1" stop-color="${s.color}" stop-opacity="0"/></linearGradient>`).join('')}</defs>`);
 
   // 見出し
   const ha = appear(t, rv.headline, 0.5);

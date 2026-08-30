@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { T, FONT, appear, text } from './shared.mjs';
+import { T, FONT, appear, text, boardBG } from './shared.mjs';
 import { renderSubtitle, renderTelop, renderSection } from './overlay.mjs';
 
 const W = 1280, H = 720;
@@ -48,8 +48,7 @@ function figure(id, cx, active, expr, localT) {
 
 export function buildConversationSVG(scene, t) {
   const parts = [];
-  parts.push(`<defs><linearGradient id="cvbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient></defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#cvbg)"/>`);
+  parts.push(boardBG('cvbg'));
 
   const turn = scene.turns.find((x) => t >= x.start && t < x.start + x.dur) || scene.turns[scene.turns.length - 1];
   const haruActive = turn.speaker === 'haru';

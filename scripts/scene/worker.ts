@@ -3,7 +3,7 @@
 //   ffmpeg / sharp / Gemini が必要（Vercel等では動かない。職員PCで常駐する）。
 //   使い方: npm run scene:worker            （1回だけ全pendingを処理）
 //           npm run scene:worker -- --watch  （常駐してポーリング）
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { hostname } from "node:os";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -12,9 +12,13 @@ import { validateVideoProject } from "@/lib/scene/validate";
 import type { SceneJob, SceneJobStatus } from "@/lib/types";
 import { registerSceneTask } from "./registerSceneTask";
 
-for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-  const m = line.match(/^([A-Z_]+)\s*=\s*(.+)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
+// ローカル開発では .env.local を読む（tsx直接実行では自動読込されないため）。
+// Docker本番では docker-compose の env_file(.env) で環境変数が渡るため、無くてもよい。
+if (existsSync(".env.local")) {
+  for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+    const m = line.match(/^([A-Z_]+)\s*=\s*(.+)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
+  }
 }
 
 const WORKER_ID = `${hostname()}:${process.pid}`;

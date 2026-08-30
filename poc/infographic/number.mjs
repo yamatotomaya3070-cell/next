@@ -1,5 +1,5 @@
 // visual_type = number_animation （カウントアップ）
-import { T, FONT, appear, easeOut, easePop, clamp, commas, text, roundRect } from './shared.mjs';
+import { T, FONT, appear, easeOut, easePop, clamp, commas, text, roundRect, boardBG } from './shared.mjs';
 
 const W = 1280, H = 720;
 
@@ -13,11 +13,8 @@ function estWidth(s, size) {
 export function buildNumberSVG(scene, t) {
   const rv = scene.reveal;
   const parts = [];
-  parts.push(`<defs>
-    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient>
-    <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#bg2)"/>`);
+  parts.push(boardBG('bg2'));
+  parts.push(`<defs><filter id="glow2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`);
 
   // 見出し
   const ha = appear(t, rv.headline, 0.5);

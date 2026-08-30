@@ -1,11 +1,10 @@
 // タイトルカード（動画冒頭）
-import { T, appear, easeOut, clamp, easePop, text, roundRect } from './shared.mjs';
+import { T, appear, easeOut, clamp, easePop, text, roundRect, boardBG, chalkBox } from './shared.mjs';
 const W = 1280, H = 720;
 
 export function buildTitleSVG(scene, t) {
   const parts = [];
-  parts.push(`<defs><linearGradient id="ttbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0e1e22"/><stop offset="1" stop-color="#13312c"/></linearGradient></defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#ttbg)"/>`);
+  parts.push(boardBG('ttbg'));
   // アイキャッチの帯
   const b = appear(t, 0.1, 0.5);
   parts.push(roundRect(W / 2 - 120, 210 - b.dy, 240, 44, 22, T.accent, { opacity: b.o }));
@@ -24,7 +23,7 @@ export function buildTitleSVG(scene, t) {
 // まとめ/CTAの合言葉カード（語を1つずつ）
 export function buildKeywordsSVG(scene, t) {
   const parts = [];
-  parts.push(`<rect width="${W}" height="${H}" fill="${T.bg0}"/>`);
+  parts.push(boardBG('kwbg'));
   parts.push(text(W / 2, 150, scene.headline, { anchor: 'middle', size: 40, weight: 800, fill: '#ffffff', opacity: appear(t, 0.1, 0.4).o }));
   const n = scene.words.length;
   const gap = 40, cardW = 300, totalW = n * cardW + (n - 1) * gap;
@@ -33,8 +32,8 @@ export function buildKeywordsSVG(scene, t) {
     const a = appear(t, 0.5 + i * 0.5, 0.4);
     if (a.o > 0) {
       parts.push(`<g opacity="${a.o}" transform="translate(0 ${a.dy})">
-        ${roundRect(x, 300, cardW, 160, 20, T.accentPanel, { stroke: T.accent, sw: 2 })}
-        ${text(x + cardW / 2, 402, w, { anchor: 'middle', size: 56, weight: 800, fill: T.good })}
+        ${chalkBox(x, 300, cardW, 160, 20, {})}
+        ${text(x + cardW / 2, 402, w, { anchor: 'middle', size: 56, weight: 800, fill: T.chalkWarm })}
       </g>`);
     }
     x += cardW + gap;

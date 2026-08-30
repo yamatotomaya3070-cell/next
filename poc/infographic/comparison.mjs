@@ -1,6 +1,6 @@
 // visual_type = comparison （左右比較）
 // SCENE.visual.infographic のデータ + reveal スケジュールから、時刻 t のSVGを生成。
-import { T, FONT, appear, easeOut, easePop, clamp, text, roundRect } from './shared.mjs';
+import { T, FONT, appear, easeOut, easePop, clamp, text, roundRect, boardBG } from './shared.mjs';
 import { estWidth } from './overlay.mjs';
 
 const W = 1280, H = 720;
@@ -15,16 +15,13 @@ function fitSize(s, maxW, base, min = 20) {
 export function buildComparisonSVG(scene, t) {
   const rv = scene.reveal;
   const parts = [];
-  // 背景（縦グラデ）
+  // 背景（教室×黒板）
+  parts.push(boardBG('bg'));
   parts.push(`<defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/>
-    </linearGradient>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#bg)"/>`);
 
   // タイトル
   const at = appear(t, rv.title, 0.5);

@@ -1,14 +1,13 @@
 // visual_type = timeline （制度の変遷などの時系列）
-import { T, appear, easeOut, easePop, clamp, text, roundRect } from './shared.mjs';
+import { T, appear, easeOut, easePop, clamp, text, roundRect, boardBG } from './shared.mjs';
 
 const W = 1280, H = 720;
 
 export function buildTimelineSVG(scene, t) {
   const rv = scene.reveal;
   const parts = [];
-  parts.push(`<defs><linearGradient id="tbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient>
-    <filter id="tglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`);
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#tbg)"/>`);
+  parts.push(boardBG('tbg'));
+  parts.push(`<defs><filter id="tglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`);
 
   const ha = appear(t, rv.headline, 0.5);
   parts.push(text(W / 2, 120 - ha.dy, scene.headline, { anchor: 'middle', size: 42, weight: 800, opacity: ha.o }));

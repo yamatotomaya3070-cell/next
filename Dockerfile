@@ -23,5 +23,7 @@ ENV VIDEO_FONT_FILE=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
 ENV VIDEO_FONT_NAME="Noto Sans CJK JP"
 ENV WORKER_POLL_MS=15000
 
-# 共通素材が無ければ初回に生成 → その後ワーカーを常駐（--watch）で起動
-CMD ["sh", "-c", "[ -f assets/video/bg_default.png ] || npx tsx scripts/video/generate-assets.ts; exec npx tsx scripts/video/worker.ts --watch"]
+# SCENEパイプライン（ハル/ミナ・教室×黒板テーマ）のワーカーを常駐（--watch）で起動。
+# 背景/BGM/オープニング・エンディング等の共通素材は assets/video/ にコミット済みのものを使う
+# （image生成APIを都度叩かず、事前生成済みアセットを使い回す設計）。
+CMD ["npx", "tsx", "scripts/scene/worker.ts", "--watch"]

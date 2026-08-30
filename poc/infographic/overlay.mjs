@@ -42,10 +42,17 @@ export function renderSubtitle(speaker, textStr, o = 1) {
   const barW = Math.min(W - 60, blockW + padX * 2);
   const barH = 40 + lines.length * lineH; // 名前行(約34)+本文
   const bottom = 694, y = bottom - barH, x = (W - barW) / 2;
-  const nameFrag = text(x + padX, y + 26, sp.name, { size: 15, weight: 700, fill: sp.color });
-  const lineFrags = lines.map((ln, i) => text(x + padX, y + 34 + (i + 1) * lineH - 8, ln, { size, weight: 600, fill: '#ffffff' })).join('');
+  // ノート風: クリーム帯＋薄グレー罫線＋濃色本文（話者色の左縦帯は維持）
+  const nameFrag = text(x + padX, y + 26, sp.name, { size: 15, weight: 800, fill: sp.color });
+  const ruleFrags = lines.map((_, i) => {
+    const ry = y + 34 + (i + 1) * lineH + 4;
+    return `<line x1="${x + padX}" y1="${ry}" x2="${x + barW - padX}" y2="${ry}" stroke="${T.noteRule}" stroke-width="1.5"/>`;
+  }).join('');
+  const lineFrags = lines.map((ln, i) => text(x + padX, y + 34 + (i + 1) * lineH - 8, ln, { size, weight: 600, fill: '#2c3a30' })).join('');
   return `<g opacity="${o}">
-    ${roundRect(x, y, barW, barH, 12, 'rgba(12,20,22,0.88)')}
+    ${roundRect(x, y, barW, barH, 12, T.note)}
+    ${roundRect(x, y, barW, barH, 12, 'none', { stroke: T.noteRule, sw: 1.5 })}
+    ${ruleFrags}
     ${roundRect(x, y, 7, barH, 12, sp.color)}
     ${nameFrag}${lineFrags}
   </g>`;

@@ -4,7 +4,7 @@
 import sharp from 'sharp';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderSubtitle, renderSection, inject } from '../infographic/overlay.mjs';
 import { buildTitleSVG } from '../infographic/title.mjs';
@@ -77,13 +77,18 @@ async function main() {
   rmSync(WORK, { recursive: true, force: true }); mkdirSync(WORK, { recursive: true });
   mkdirSync(VOX, { recursive: true });
 
-  // タイトル導入（3秒）
+  // 固定オープニング/エンディング（「マネーの学校」）。あれば後段で前後に concat する。
+  // opening.mp4 が無い場合のみ、従来の3秒タイトルカードを先頭にフォールバック生成。
+  const OPENING_MP4 = 'assets/video/opening.mp4';
+  const ENDING_MP4 = 'assets/video/ending.mp4';
+  const hasOpening = existsSync(OPENING_MP4);
+  const hasEnding = existsSync(ENDING_MP4);
   const clips = [];
-  {
+  if (!hasOpening) {
     const titleScene = { title: (project.title || '').slice(0, 20), subtitle: (project.goal || '').slice(0, 24) };
     const n = Math.round(3.0 * FPS);
     for (let i = 0; i < n; i++) await sharp(Buffer.from(buildTitleSVG(titleScene, i / FPS))).png().toFile(`${WORK}/t_${String(i).padStart(4, '0')}.png`);
-    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/t_%04d.png`, '-f', 'lavfi', '-t', '3.0', '-i', 'anullsrc=r=24000:cl=mono', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-shortest', `${WORK}/clip_000.mp4`]);
+    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/t_%04d.png`, '-f', 'lavfi', '-t', '3.0', '-i', 'anullsrc=r=24000:cl=mono', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-shortest', `${WORK}/clip_000.mp4`]);
     clips.push('clip_000.mp4');
   }
 
@@ -141,27 +146,42 @@ async function main() {
     }
     const clip = `clip_${tag}.mp4`;
     ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/f_${tag}_%04d.png`, '-i', sceneWav,
-      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', `${WORK}/${clip}`]);
+      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', `${WORK}/${clip}`]);
     clips.push(clip);
     // フレーム掃除（音声は残す=再開時キャッシュ）
     spawnSync('bash', ['-c', `rm -f ${WORK}/f_${tag}_*.png ${WORK}/t_*.png`]);
   }
 
-  // 4) 連結 → BGMを声の下に敷いて最終ミックス
+  // 4) 本編を連結 → 本編にだけ body BGM を敷く（opening/ending は自前BGM内包＝二重掛け回避）
   writeFileSync(`${WORK}/list.txt`, clips.map((c) => `file '${c}'`).join('\n') + '\n');
-  const concatMp4 = `${WORK}/_concat.mp4`;
-  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/list.txt`, '-c', 'copy', concatMp4]);
-  const BGM = process.env.BGM_FILE || 'assets/video/bgm_loop.wav';
+  const bodyMp4 = `${WORK}/_body.mp4`;
+  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/list.txt`, '-c', 'copy', bodyMp4]);
+  const BGM = process.env.BGM_FILE || 'assets/video/bgm_classroom_body.wav';
   const bgmVol = process.env.BGM_VOL || '0.10';
+  // opening/ending(aac 44100 stereo) と concat -c copy するため、本編音声も 44100 stereo aac に揃える
+  const bodyBgm = `${WORK}/_bodybgm.mp4`;
   if (BGM.toLowerCase() !== 'none' && existsSync(BGM)) {
-    ff(['-y', '-i', concatMp4, '-stream_loop', '-1', '-i', BGM,
+    ff(['-y', '-i', bodyMp4, '-stream_loop', '-1', '-i', BGM,
       '-filter_complex', `[1:a]volume=${bgmVol},aformat=sample_rates=44100:channel_layouts=stereo[bg];[0:a]aformat=sample_rates=44100:channel_layouts=stereo[vo];[vo][bg]amix=inputs=2:duration=first:normalize=0[aout]`,
-      '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', OUT]);
+      '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2', '-shortest', bodyBgm]);
   } else {
-    ff(['-y', '-i', concatMp4, '-c', 'copy', OUT]);
+    ff(['-y', '-i', bodyMp4, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2', bodyBgm]);
+  }
+
+  // 5) 固定オープニング + 本編 + 固定エンディング を最終連結（-c copy）
+  const absPath = (p) => resolve(p).replace(/\\/g, '/');
+  const finalList = [];
+  if (hasOpening) finalList.push(OPENING_MP4);
+  finalList.push(bodyBgm);
+  if (hasEnding) finalList.push(ENDING_MP4);
+  if (finalList.length === 1) {
+    ff(['-y', '-i', bodyBgm, '-c', 'copy', OUT]);
+  } else {
+    writeFileSync(`${WORK}/final.txt`, finalList.map((p) => `file '${absPath(p)}'`).join('\n') + '\n');
+    ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/final.txt`, '-c', 'copy', OUT]);
   }
   const dur = probe(OUT);
-  console.log(`\n\n=== 完成: ${OUT} (${dur.toFixed(1)}s / ${clips.length}クリップ / BGM=${existsSync(BGM) ? 'あり' : 'なし'}) ===`);
+  console.log(`\n\n=== 完成: ${OUT} (${dur.toFixed(1)}s / 本編${clips.length}クリップ / opening=${hasOpening ? 'あり' : 'なし'} / ending=${hasEnding ? 'あり' : 'なし'} / body BGM=${existsSync(BGM) ? 'あり' : 'なし'}) ===`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

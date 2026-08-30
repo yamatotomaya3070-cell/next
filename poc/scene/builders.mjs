@@ -1,7 +1,7 @@
 // SCENE.visual → 図解ビルダー（純粋関数群）。render_project.mjs と build_materials.mjs で共有。
 //   ここには「図解の中身」だけを持つ。テロップ/字幕/セクション見出しのオーバーレイは
 //   呼び出し側が overlay.mjs の inject() で重ねる（＝素材書き出しはオーバーレイを外せば no-telop になる）。
-import { T, text, roundRect, appear, easeOut, clamp, commas } from '../infographic/shared.mjs';
+import { T, text, roundRect, appear, easeOut, clamp, commas, boardBG, chalkBox } from '../infographic/shared.mjs';
 import { estWidth } from '../infographic/overlay.mjs';
 import { buildNumberSVG } from '../infographic/number.mjs';
 import { buildComparisonSVG } from '../infographic/comparison.mjs';
@@ -44,8 +44,7 @@ export function buildRecapSVG(scene) {
   const W2 = 1280, H2 = 720;
   const points = (scene.visual.onScreenText || []).filter(Boolean).slice(0, 4);
   return (t) => {
-    const parts = [`<defs><linearGradient id="rcbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient></defs>`,
-      `<rect width="${W2}" height="${H2}" fill="url(#rcbg)"/>`];
+    const parts = [boardBG('rcbg')];
     const ha = appear(t, 0.2, 0.5);
     parts.push(text(W2 / 2, 130 - ha.dy, '今日のまとめ', { anchor: 'middle', size: 46, weight: 800, fill: '#ffffff', opacity: ha.o }));
     const n = points.length;
@@ -55,9 +54,9 @@ export function buildRecapSVG(scene) {
       const a = appear(t, 0.6 + i * 0.5, 0.4);
       if (a.o <= 0) return;
       const y = startY + i * rowH - a.dy;
-      parts.push(roundRect(leftX - 30, y - 32, W2 - leftX * 2 + 60, 68, 16, hexA(T.accent, 0.10 * a.o)));
-      parts.push(`<circle cx="${leftX}" cy="${y}" r="22" fill="${T.accent}" opacity="${a.o}"/>`);
-      parts.push(text(leftX, y + 9, '✓', { anchor: 'middle', size: 26, weight: 800, fill: '#08201d', opacity: a.o }));
+      parts.push(chalkBox(leftX - 30, y - 34, W2 - leftX * 2 + 60, 68, 16, { opacity: a.o }));
+      parts.push(`<circle cx="${leftX}" cy="${y}" r="20" fill="${T.chalkWarm}" opacity="${a.o}"/>`);
+      parts.push(text(leftX, y + 8, '✓', { anchor: 'middle', size: 24, weight: 800, fill: '#2f5233', opacity: a.o }));
       const sz = fitSize(p, maxTextW, 40, 24);
       parts.push(text(textX, y + sz / 3, p, { anchor: 'start', size: sz, weight: 700, fill: '#ffffff', opacity: a.o }));
     });
@@ -70,8 +69,7 @@ export function buildBarChartSVG(scene, t) {
   const bars = scene.bars.slice(0, 6);
   const W2 = 1280, H2 = 720, X0 = 200, X1 = 1080, YB = 580, YT = 210;
   const yMax = niceMax(Math.max(1, ...bars.map((b) => Math.abs(b.value))));
-  const parts = [`<defs><linearGradient id="brbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient></defs>`,
-    `<rect width="${W2}" height="${H2}" fill="url(#brbg)"/>`];
+  const parts = [boardBG('brbg')];
   const ha = appear(t, 0.2, 0.5);
   parts.push(text(W2 / 2, 120 - ha.dy, scene.headline, { anchor: 'middle', size: 42, weight: 800, opacity: ha.o }));
   for (let k = 0; k <= 4; k++) { const y = YB - (YB - YT) * (k / 4); parts.push(`<line x1="${X0}" y1="${y}" x2="${X1}" y2="${y}" stroke="${T.line}" stroke-width="1" opacity="0.4"/>`); }
@@ -98,9 +96,8 @@ export function buildConceptSVG(scene) {
   const nodes = (v.onScreenText || []).slice(0, 4);
   return (t) => {
     const W2 = 1280, H2 = 720;
-    const parts = [`<defs><linearGradient id="cpbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient>
-      <marker id="arw" markerWidth="12" markerHeight="12" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="${T.accent}"/></marker></defs>`,
-      `<rect width="${W2}" height="${H2}" fill="url(#cpbg)"/>`];
+    const parts = [boardBG('cpbg'),
+      `<defs><marker id="arw" markerWidth="12" markerHeight="12" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="${T.accent}"/></marker></defs>`];
     // ※ description は演出メモ(編集者向け)なので画面に出さない。ノード(onScreenText)で見せる。
     if (nodes.length) {
       const cy = 360, bw = 300, bh = 100, gap = (W2 - nodes.length * bw) / (nodes.length + 1);
@@ -111,8 +108,7 @@ export function buildConceptSVG(scene) {
       }
       nodes.forEach((tp, i) => {
         const a = appear(t, 0.5 + i * 0.4, 0.4);
-        parts.push(roundRect(xs[i] - bw / 2, cy - bh / 2 - a.dy, bw, bh, 16, T.accentPanel, { opacity: a.o }));
-        parts.push(`<rect x="${xs[i] - bw / 2}" y="${cy - bh / 2 - a.dy}" width="6" height="${bh}" rx="3" fill="${T.accent}" opacity="${a.o}"/>`);
+        parts.push(chalkBox(xs[i] - bw / 2, cy - bh / 2 - a.dy, bw, bh, 16, { opacity: a.o }));
         wrapJa(tp, 12, 2).forEach((ln, k, arr) => parts.push(text(xs[i], cy - (arr.length - 1) * 15 + k * 30 - a.dy, ln, { anchor: 'middle', size: 26, weight: 700, fill: '#ffffff', opacity: a.o })));
       });
     }
@@ -126,16 +122,14 @@ export function genericCard(scene) {
   const v = scene.visual;
   const tels = (v.onScreenText || []).filter(Boolean).slice(0, 3);
   return (t) => {
-    const parts = [`<defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.bg0}"/><stop offset="1" stop-color="${T.bg1}"/></linearGradient></defs>`,
-      `<rect width="${W}" height="${H}" fill="url(#gc)"/>`];
+    const parts = [boardBG('gc')];
     if (tels.length) {
       const ha = appear(t, 0.2, 0.5);
       wrapJa(tels[0], 16, 2).forEach((ln, i, arr) =>
         parts.push(text(W / 2, 250 - (arr.length - 1) * 30 + i * 60 - ha.dy, ln, { anchor: 'middle', size: 52, weight: 800, fill: '#ffffff', opacity: ha.o })));
       tels.slice(1).forEach((tp, i) => {
         const b = appear(t, 0.7 + i * 0.35, 0.4);
-        parts.push(roundRect(W / 2 - 240, 380 + i * 72 - b.dy, 480, 56, 28, T.accentPanel, { opacity: b.o }));
-        parts.push(`<rect x="${W / 2 - 240}" y="${380 + i * 72 - b.dy}" width="6" height="56" rx="3" fill="${T.accent}" opacity="${b.o}"/>`);
+        parts.push(chalkBox(W / 2 - 240, 380 + i * 72 - b.dy, 480, 56, 28, { opacity: b.o }));
         parts.push(text(W / 2, 417 + i * 72 - b.dy, String(tp).slice(0, 20), { anchor: 'middle', size: 28, weight: 700, fill: '#ffffff', opacity: b.o }));
       });
     } else {

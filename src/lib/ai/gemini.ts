@@ -307,6 +307,12 @@ ${input.knowledgeContext}
 上記の実案件の傾向（依頼の書き方・要求水準・注意されやすい点）を模擬依頼書とチェックリストに反映し、より本番に近い練習案件にしてください。`
       : "";
     const editingPatternBlock = input.editingPatternContext ? `\n\n${input.editingPatternContext}` : "";
+    const guidelinesBlock = input.manualGuidelinesContext
+      ? `
+
+作業手順(manualSteps)の必守ルール（過去の修正から学習。違反しないこと）:
+${input.manualGuidelinesContext}`
+      : "";
 
     const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。実案件と同等の情報量・具体性をもつ練習課題一式を生成してください。
 
@@ -321,7 +327,7 @@ ${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""
 1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（生テキスト・#やMarkdownは使わない）
 ${REQUEST_DOC_GUIDANCE}
 2. manualSteps: 操作手順書（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
-${MANUAL_GUIDANCE}
+${MANUAL_GUIDANCE}${guidelinesBlock}
 3. script: 字幕・テロップ用の台本（テロップ課題でなければ null）
 4. selfCheckItems: 納品前セルフチェック項目（4〜6個）。仕様書【2】の数値・【4】のルールと1対1で対応させる
 ${COMMON_STYLE}
@@ -411,6 +417,12 @@ JSONスキーマ:
             .join("\n")}\n参考例の依頼の書き方・要求水準に寄せると、より本番に近くなります。`
         : "";
     const editingPatternBlock = input.editingPatternContext ? `\n\n${input.editingPatternContext}` : "";
+    const guidelinesBlock = input.manualGuidelinesContext
+      ? `
+
+作業手順(manualSteps)の必守ルール（過去の修正から学習。違反しないこと）:
+${input.manualGuidelinesContext}`
+      : "";
 
     // ステップ2: 模擬案件一式の生成
     const prompt = `あなたはクラウドワークス等の動画編集実案件を熟知したディレクター兼講師です。以下の「匿名化済みの実案件」に似た練習案件一式を、実案件と同等の情報量・具体性で生成してください。実案件そのもののコピーではなく、同じジャンル・同じ要求水準の「類似案件」を新しく作ります。
@@ -428,7 +440,7 @@ ${input.traineeNote ? `- 利用者への配慮メモ: ${input.traineeNote}` : ""
 1. requestDoc: 下記ガイドに従った「依頼文＋案件仕様書」（生テキスト・#やMarkdownは使わない）。実案件と同じ種類の要求水準を保つ
 ${REQUEST_DOC_GUIDANCE}
 2. manualSteps: 操作手順書（5〜12ステップ）。各ステップに text（やること）と tip（コツや励まし、なければnull）
-${MANUAL_GUIDANCE}
+${MANUAL_GUIDANCE}${guidelinesBlock}
 3. script: 字幕・テロップ用の台本（テロップ課題でなければ null）
 4. selfCheckItems: 納品前セルフチェック項目（4〜6個）。仕様書【2】の数値・【4】のルールと1対1で対応させる
 5. revisionNote: 初回納品後に依頼者から届く想定の修正指示文（依頼者口調のメッセージ。2〜3箇所の具体的な修正。実案件で起こりがちな修正内容にする）

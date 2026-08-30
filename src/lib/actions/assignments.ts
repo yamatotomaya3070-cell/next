@@ -212,5 +212,6 @@ export async function askQuestion(
     });
     revalidatePath(`/tasks/${assignmentId}`);
   }
+  revalidatePath("/messages");
   return { error: null, success: true };
 }

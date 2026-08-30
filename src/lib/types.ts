@@ -114,6 +114,25 @@ export interface ManualStep {
   image_url?: string | null;
 }
 
+/**
+ * 作業手順(manualSteps)の学習ルール（manual_guidelines テーブル）。
+ * 「直した内容(rule)」＋「なぜ(reason)」を蓄積し、以後のAI手順生成に自動注入する。
+ */
+export interface ManualGuideline {
+  id: string;
+  title: string; // 短い要約（見出し）
+  rule: string; // 守るべきルール（AIへの指示文）
+  reason: string; // なぜ直すのか（根拠）
+  example_before: string | null; // 修正前のNG例（任意）
+  example_after: string | null; // 修正後のあるべき例（任意）
+  skill_tags: string[]; // 対象スキル（空=全案件）
+  is_active: boolean;
+  source_task_id: string | null; // どの案件の修正から学んだか（任意）
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TaskMaterial {
   id: string;
   task_id: string;

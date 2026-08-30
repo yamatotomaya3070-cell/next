@@ -6,6 +6,7 @@ import { requireRole, createClient } from "@/lib/supabase/server";
 import { generateTask } from "@/lib/ai";
 import type { AptitudeKey } from "@/lib/types";
 import type { ActionState } from "./assignments";
+import { buildManualGuidelinesContext } from "./manualSteps";
 
 /** AIで練習課題一式を生成し、下書きとして保存 */
 export async function createTaskWithAi(
@@ -58,6 +59,13 @@ export async function createTaskWithAi(
     console.error("実案件ナレッジの取得に失敗（ナレッジなしで生成を続行）:", err);
   }
 
+  // 過去の手順修正から学習したルール（なぜ直したか付き）を生成プロンプトに注入する。
+  // これにより「完成見本を見せる手順を書かない」等の学習が以後の生成に自動反映される。
+  const manualGuidelinesContext = await buildManualGuidelinesContext(
+    supabase,
+    skillTags,
+  );
+
   let generated;
   try {
     generated = await generateTask({
@@ -66,6 +74,7 @@ export async function createTaskWithAi(
       skillTags,
       traineeNote: traineeNote || undefined,
       knowledgeContext,
+      manualGuidelinesContext: manualGuidelinesContext || undefined,
     });
   } catch (err) {
     console.error("教材生成に失敗:", err);
@@ -333,6 +342,7 @@ export async function answerQuestion(
   if (error) return { error: "回答の保存に失敗しました。" };
 
   revalidatePath("/staff");
+  revalidatePath("/staff/messages");
   return { error: null, success: true };
 }
 

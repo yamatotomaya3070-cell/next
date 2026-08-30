@@ -27,6 +27,7 @@ export interface GenerateTaskInput {
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
   knowledgeContext?: string; // 蓄積済み実案件ナレッジの要約（依頼傾向・注意事項）
   editingPatternContext?: string; // 実案件動画から学習した編集パターン（Loop A。editingPatternToPromptBlockの出力）
+  manualGuidelinesContext?: string; // 作業手順の必守ルール（manual_guidelines。過去の修正から学習。buildManualGuidelinesContextの出力）
 }
 
 /** 練習教材の生成結果 */
@@ -48,6 +49,7 @@ export interface GenerateSimilarCaseInput {
   traineeNote?: string; // 利用者特性に合わせた調整メモ（任意）
   referenceSnippets?: string[]; // RAG: 過去の匿名化済み類似案件の抜粋（match_case_documents の結果）
   editingPatternContext?: string; // 実案件動画から学習した編集パターン（Loop A。editingPatternToPromptBlockの出力）
+  manualGuidelinesContext?: string; // 作業手順の必守ルール（manual_guidelines。過去の修正から学習）
 }
 
 /** 匿名化レポート（職員承認画面に表示する） */

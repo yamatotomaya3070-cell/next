@@ -389,6 +389,9 @@ export default async function StaffDashboardPage() {
   const traineeName = (id: string) =>
     trainees.find((t) => t.id === id)?.display_name ?? "不明";
 
+  const questionTaskTitle = (assignmentId: string | null): string | null =>
+    assignmentId ? (assignmentById.get(assignmentId)?.tasks?.title ?? null) : null;
+
   const aside = (
     <>
       <SectionCard title="本日の未提出" icon={<IconAlert />}>
@@ -548,12 +551,29 @@ export default async function StaffDashboardPage() {
                     {traineeName(q.user_id)} さん ・{" "}
                     {new Date(q.created_at).toLocaleString("ja-JP")}
                   </p>
+                  {questionTaskTitle(q.assignment_id) ? (
+                    <p className="mt-1 text-xs font-medium text-primary-dark">
+                      案件: {questionTaskTitle(q.assignment_id)}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-ink-soft">
+                      案件に関係しない質問
+                    </p>
+                  )}
                   <p className="mt-1 font-bold text-ink">{q.question}</p>
                   <div className="mt-3">
                     <AnswerForm qaId={q.id} />
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 text-right">
+              <Link
+                href="/staff/messages"
+                className="font-bold text-primary hover:text-primary-dark hover:underline"
+              >
+                メッセージをすべて見る →
+              </Link>
             </div>
           </SectionCard>
         </div>

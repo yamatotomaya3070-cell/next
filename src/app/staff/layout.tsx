@@ -18,6 +18,8 @@ const STAFF_NAV: SidebarItem[] = [
   { href: "/staff/cases/new", label: "CrowdWorks案件を配布", icon: "globe" },
   { href: "/staff/scene", label: "YouTube動画生成", icon: "sparkles" },
   { href: "/staff/reviews", label: "提出レビュー", icon: "check" },
+  { href: "/staff/guidelines", label: "手順の学習ルール", icon: "sparkles" },
+  { href: "/staff/messages", label: "メッセージ", icon: "message" },
 ];
 
 const TITLE_MAP: Record<string, string> = {
@@ -30,6 +32,8 @@ const TITLE_MAP: Record<string, string> = {
   "/staff/scene": "YouTube動画生成",
   "/staff/video-ingests": "参考動画の学習",
   "/staff/reviews": "提出レビュー",
+  "/staff/guidelines": "手順の学習ルール",
+  "/staff/messages": "メッセージ",
 };
 
 export default async function StaffLayout({

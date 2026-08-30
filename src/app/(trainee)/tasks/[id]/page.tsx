@@ -169,7 +169,7 @@ export default async function TaskDetailPage({
           {/* 納品条件（依頼書に含まれる想定。専用データ項目は未実装） */}
           <SectionCard title="納品条件">
             <p className="text-[15px] leading-relaxed text-ink-soft">
-              ファイル形式や長さなどの納品条件は、上の依頼内容に書かれています。分からないときは「レビュー結果」タブから質問してください。
+              ファイル形式や長さなどの納品条件は、上の依頼内容に書かれています。分からないことがあれば、下の「レビュー結果」タブや「メッセージ」画面から、作業の途中でもいつでも質問できます。
             </p>
           </SectionCard>
 

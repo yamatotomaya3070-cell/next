@@ -28,7 +28,7 @@ export default async function SupportPage() {
           <ol className="list-decimal space-y-2 pl-5 text-[15px] leading-relaxed text-ink">
             <li>案件の詳細画面にある「手順」をもう一度見てみましょう。</li>
             <li>
-              それでも分からないときは、案件の詳細画面から質問を送ってください。
+              それでも分からないときは、「メッセージ」画面からいつでも質問を送れます（作業の途中でも大丈夫です）。
             </li>
             <li>スタッフに直接声をかけても大丈夫です。</li>
           </ol>
@@ -37,12 +37,12 @@ export default async function SupportPage() {
           </p>
         </SectionCard>
 
-        <SectionCard title="質問のやりとりを見る" icon={<IconMessage />}>
+        <SectionCard title="質問する・やりとりを見る" icon={<IconMessage />}>
           <p className="text-[15px] text-ink-soft">
-            これまでに送った質問と回答は、メッセージ画面で確認できます。
+            メッセージ画面から、職員へいつでも質問を送れます。これまでの質問と回答もここで確認できます。
           </p>
           <Link href="/messages" className={`${secondaryButtonClass} mt-4`}>
-            メッセージを見る
+            メッセージを開く
           </Link>
         </SectionCard>
 

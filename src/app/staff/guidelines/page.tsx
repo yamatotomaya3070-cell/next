@@ -1,11 +1,8 @@
-import Link from "next/link";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import type { ManualGuideline } from "@/lib/types";
-import { SKILL_TAG_LABELS } from "@/lib/types";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { NewGuidelineForm, ToggleActiveButton } from "./GuidelineForms";
+import { NewGuidelineForm, GuidelineCard } from "./GuidelineForms";
 
 export const dynamic = "force-dynamic";
 
@@ -53,68 +50,7 @@ export default async function GuidelinesPage() {
           ) : (
             <ul className="space-y-4">
               {guidelines.map((g) => (
-                <li
-                  key={g.id}
-                  className={`rounded-xl border p-4 ${
-                    g.is_active
-                      ? "border-line bg-surface"
-                      : "border-line bg-page opacity-70"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-bold text-ink">{g.title}</span>
-                    <ToggleActiveButton
-                      guidelineId={g.id}
-                      isActive={g.is_active}
-                    />
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-ink">
-                    <span className="font-bold text-ink-soft">ルール: </span>
-                    {g.rule}
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink">
-                    <span className="font-bold text-ink-soft">理由: </span>
-                    {g.reason}
-                  </p>
-                  {(g.example_before || g.example_after) && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {g.example_before && (
-                        <p className="rounded-lg bg-danger/5 p-2 text-xs text-ink">
-                          <span className="font-bold text-danger">NG: </span>
-                          {g.example_before}
-                        </p>
-                      )}
-                      {g.example_after && (
-                        <p className="rounded-lg bg-success-soft p-2 text-xs text-ink">
-                          <span className="font-bold text-success">OK: </span>
-                          {g.example_after}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {g.skill_tags.length === 0 ? (
-                      <StatusBadge label="全案件に適用" tone="info" size="sm" />
-                    ) : (
-                      g.skill_tags.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs text-primary-dark"
-                        >
-                          {SKILL_TAG_LABELS[t] ?? t}
-                        </span>
-                      ))
-                    )}
-                    {g.source_task_id && (
-                      <Link
-                        href={`/staff/tasks/${g.source_task_id}`}
-                        className="text-xs font-bold text-primary hover:underline"
-                      >
-                        修正元の案件を見る →
-                      </Link>
-                    )}
-                  </div>
-                </li>
+                <GuidelineCard key={g.id} guideline={g} />
               ))}
             </ul>
           )}

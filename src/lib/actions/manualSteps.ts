@@ -131,6 +131,46 @@ export async function addManualGuideline(
   return { error: null, success: true };
 }
 
+/**
+ * 既存の学習ルールを編集する（rule/reasonが曖昧・例が空だと生成への拘束力が弱いため、
+ * 登録後に文言を強化できるようにする）。
+ */
+export async function updateManualGuideline(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireRole("staff", "admin");
+  const supabase = await createClient();
+
+  const guidelineId = String(formData.get("guideline_id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const rule = String(formData.get("rule") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const exampleBefore = String(formData.get("example_before") ?? "").trim();
+  const exampleAfter = String(formData.get("example_after") ?? "").trim();
+  const skillTags = formData.getAll("skill_tags").map(String).filter(Boolean);
+
+  if (!guidelineId || !title || !rule || !reason) {
+    return { error: "見出し・ルール・理由（なぜ）はすべて入力してください。" };
+  }
+
+  const { error } = await supabase
+    .from("manual_guidelines")
+    .update({
+      title,
+      rule,
+      reason,
+      example_before: exampleBefore || null,
+      example_after: exampleAfter || null,
+      skill_tags: skillTags,
+    })
+    .eq("id", guidelineId);
+  if (error) return { error: "ルールの更新に失敗しました。" };
+
+  revalidatePath("/staff/guidelines");
+  return { error: null, success: true };
+}
+
 /** 学習ルールの有効/無効を切り替える（無効にすると以後の生成に注入されない）。 */
 export async function setManualGuidelineActive(
   guidelineId: string,

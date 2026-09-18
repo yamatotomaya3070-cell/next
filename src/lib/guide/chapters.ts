@@ -23,6 +23,8 @@ export interface GuideSection {
   steps: GuideStep[];
   image?: { src: string; alt: string; marks?: GuideMark[] };
   note?: { kind: "tip" | "warn"; title: string; body: string };
+  /** この節で使うファイル（public に置いたもの） */
+  download?: { href: string; label: string; size: string };
 }
 
 export interface GuideChapter {
@@ -187,7 +189,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       {
         id: "auto",
         title: "絆の案件：スクリプトで一気に並べる",
-        lead: "素材の読み込みまで終わったら使います。ファイル名の番号順に、完成見本と同じ間隔で並びます。",
+        lead: "素材の読み込みまで終わったら使います。ファイル名の番号順に、決まった間隔で並びます。",
         steps: [
           { text: "①上のメニューの［ワークスペース］を押す" },
           { text: "②［スクリプト］にマウスを乗せて、③［絆_素材を並べる］を押す" },
@@ -380,7 +382,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
         steps: [
           { text: "Ctrl を押しながら、①BGM の段にあるBGMを全部クリックしてえらぶ", hint: "Ctrl + クリック" },
           { text: "右上の［インスペクタ］を開き、②ボリュームの数字に -20 と入れて Enter", hint: "-20 → Enter" },
-          { text: "完成見本を聞きくらべて、声がはっきり聞こえるように少し上げ下げする" },
+          { text: "声の大きさはさわりません（支給した声は、ちょうどよい大きさにしてあります）" },
         ],
         image: {
           src: img("b15_bgm_volume"),
@@ -407,6 +409,11 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           { text: "Ctrl + S で保存してから、いちばん下のロケットのマーク（デリバー）を押す", hint: "Ctrl + S" },
           { text: "②プリセットを押し、③［絆_YouTube_720p］を選ぶ。形式や大きさはこれで全部そろいます" },
         ],
+        note: {
+          kind: "warn",
+          title: "［絆_YouTube_720p］が一覧に無いとき",
+          body: "［絆_素材を並べる］を実行すると自動で入ります。それでも無いときは、そのパソコンの準備（職員の方の作業）がまだです。急ぐときは、プリセットをえらばずに、フォーマット［MP4］・コーデック［H.264］・解像度［1280 × 720］・フレームレート［24］にして書き出せば同じ仕上がりになります。",
+        },
         image: {
           src: img("b21_preset_pick"),
           alt: "プリセットの一覧を開き、絆_YouTube_720pに赤い四角",
@@ -441,7 +448,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
         title: "書き出した動画を確かめる",
         steps: [
           { text: "書き出した動画を最初から最後まで再生する" },
-          { text: "映像の順番・字幕の文と色・テロップ・声とBGMの大きさを、完成見本とくらべる" },
+          { text: "映像の順番・字幕の文と色・テロップを、作業指示一覧とくらべる。声がBGMに消されていないかも聞く" },
         ],
       },
     ],
@@ -496,10 +503,13 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       },
       {
         id: "bat",
-        title: "字幕の型とスクリプトを入れる",
+        title: "字幕の型・スクリプト・書き出し設定を入れる",
+        lead: "パソコン1台ごとに1回だけ。これをしていないパソコンでは、「絆」の字幕の型、［絆_素材を並べる］、書き出しの［絆_YouTube_720p］が出てきません。",
+        download: { href: "/guide/setup/kizuna_davinci_setup.zip", label: "セットアップ用ファイルをダウンロード", size: "13KB" },
         steps: [
+          { text: "下の［セットアップ用ファイルをダウンロード］を押し、ダウンロードした ZIP を右クリック →［すべて展開］する" },
           { text: "DaVinci をとじる" },
-          { text: "支給パッケージの「05_テンプレート」にある「セットアップ（職員用）.bat」をダブルクリックする" },
+          { text: "展開したフォルダの「セットアップ（職員用）.bat」をダブルクリックする" },
           { text: "「セットアップが終わりました」と出たら、何かキーを押してとじる" },
           { text: "DaVinci を開き、［エフェクト］→［タイトル］で「絆」の型が4つ出ること、［ワークスペース］→［スクリプト］に［絆_素材を並べる］が出ることを確かめる" },
         ],

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { GUIDE_CHAPTERS, type GuideChapter, type GuideSection } from "@/lib/guide/chapters";
-import { IconAlert, IconChevronLeft, IconChevronRight, IconHelp } from "@/components/ui/icons";
+import { IconAlert, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
 
 interface GuideChapterViewProps {
   chapter: GuideChapter;
@@ -40,6 +40,18 @@ function SectionBlock({ section }: { section: GuideSection }) {
           </li>
         ))}
       </ol>
+
+      {section.download && (
+        <a
+          href={section.download.href}
+          download
+          className="mt-5 inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary px-5 text-base font-bold text-white shadow-sm transition hover:bg-primary-dark"
+        >
+          <IconDownload className="size-5" />
+          {section.download.label}
+          <span className="text-sm font-normal text-white/80">（ZIP・{section.download.size}）</span>
+        </a>
+      )}
 
       {section.image && (
         <figure className="mt-5">

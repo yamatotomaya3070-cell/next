@@ -267,3 +267,9 @@
 [ダッシュボード] 古い自動差し戻しは数えない → 未確認件数=0
 ```
 tsc / vitest 100件 通過。
+
+### 2026-09-18 — 手順書の置き換え＋本番デプロイ（Claude）
+- 案件ごとの手順書（StepViewer・職員の手順エディタ・手順データの生成）を廃止。全案件共通の「作業のしかた」（src/lib/guide/workflow.ts ＋ components/work/WorkSteps.tsx）に置き換え。各ステップから操作動画をその場で再生／教科書の該当節へ。
+- デプロイ: GitHub https://github.com/yamatotomaya3070-cell/next の main に push → Vercel の Git 連携で自動デプロイ（本番 Ready を確認）。ローカルのブランチ名も master → main に変更。
+- 注意: Vercel CLI で直接デプロイすると poc/ や scripts/output（約5.8GB）まで送ろうとして、無料プランのアップロード上限（24時間で5000ファイル）に当たった。.vercelignore を追加済み。今後は push でデプロイする。
+- 別セッションの AI レビュー機能（src/lib/review ほか）も、同じファイルに変更が入っていて切り離せなかったため一緒にコミット・公開した（既存の表だけ使用、DB 変更なし）。

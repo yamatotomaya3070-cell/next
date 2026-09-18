@@ -33,10 +33,12 @@ export function QuestionForm({ assignmentId, taskOptions }: QuestionFormProps) {
   const canSelectTask = !assignmentId && (taskOptions?.length ?? 0) > 0;
 
   // 送信が成功するたびに完了ポップアップを表示する。
-  // （フォームは残るので、続けて質問を送れる）
-  useEffect(() => {
+  // （フォームは残るので、続けて質問を送れる。effect ではなく描画中に state を合わせる）
+  const [seenState, setSeenState] = useState(state);
+  if (seenState !== state) {
+    setSeenState(state);
     if (state.success) setShowDone(true);
-  }, [state]);
+  }
 
   // 数秒で自動的に閉じる
   useEffect(() => {
@@ -135,7 +137,7 @@ function QuestionDonePopup({ onClose }: { onClose: () => void }) {
           送信が完了しました
         </p>
         <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
-          職員からの返事を待ってください。作業は続けて大丈夫です。
+          返事は「メッセージ」に届きます。作業は続けて大丈夫です。
         </p>
         <button
           type="button"

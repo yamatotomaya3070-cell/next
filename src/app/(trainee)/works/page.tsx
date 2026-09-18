@@ -42,6 +42,19 @@ const VALID_STATUSES: AssignmentStatus[] = [
   "completed",
 ];
 
+/** 状態ごとの件数（すべての状態に 0 を入れておく） */
+function countByStatus(
+  statuses: AssignmentStatus[],
+): Record<AssignmentStatus, number> {
+  const counts = Object.fromEntries(
+    VALID_STATUSES.map((s) => [s, 0]),
+  ) as Record<AssignmentStatus, number>;
+  for (const s of statuses) {
+    if (s in counts) counts[s] += 1;
+  }
+  return counts;
+}
+
 export default async function WorksPage({
   searchParams,
 }: {
@@ -62,7 +75,8 @@ export default async function WorksPage({
     .order("created_at", { ascending: false });
   if (filter) query = query.eq("status", filter);
 
-  const [{ data, error }, { data: logsData }] = await Promise.all([
+  const [{ data, error }, { data: logsData }, { data: statusRows }] =
+    await Promise.all([
     query,
     supabase
       .from("progress_logs")
@@ -70,6 +84,11 @@ export default async function WorksPage({
       .eq("user_id", profile.id)
       .not("progress_percent", "is", null)
       .order("created_at", { ascending: false }),
+    // 絞り込みチップに出す状態ごとの件数（絞り込みに関係なく全件から数える）
+    supabase
+      .from("task_assignments")
+      .select("status")
+      .eq("user_id", profile.id),
   ]);
 
   if (error) {
@@ -81,6 +100,9 @@ export default async function WorksPage({
   }
 
   const assignments = (data ?? []) as unknown as AssignmentRow[];
+  const counts = countByStatus(
+    ((statusRows ?? []) as { status: AssignmentStatus }[]).map((r) => r.status),
+  );
   const latestProgress = new Map<string, number>();
   for (const log of logsData ?? []) {
     if (!latestProgress.has(log.assignment_id)) {
@@ -107,7 +129,7 @@ export default async function WorksPage({
         {FILTER_TITLES[filter ?? "all"]}
       </h1>
       <div className="mt-4">
-        <WorksFilter current={filter} />
+        <WorksFilter current={filter} counts={counts} />
       </div>
       {cards.length === 0 ? (
         <div className="mt-6">

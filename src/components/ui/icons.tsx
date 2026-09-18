@@ -334,3 +334,21 @@ export function IconPlus(props: IconProps) {
     </svg>
   );
 }
+
+export function IconSend(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+export function IconArrowLeft(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="m12 19-7-7 7-7" />
+      <path d="M19 12H5" />
+    </svg>
+  );
+}

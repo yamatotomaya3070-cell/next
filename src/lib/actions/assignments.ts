@@ -5,6 +5,7 @@ import { requireProfile, createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAiReview } from "@/lib/review/createAiReview";
 import { parseSelfCheck } from "@/lib/review/parseSelfCheck";
+import { describeMessagesError } from "@/lib/messages/errors";
 import type { ProgressEvent } from "@/lib/types";
 
 export interface ActionState {
@@ -186,13 +187,16 @@ export async function askQuestion(
 
   if (!question) return { error: "質問を入力してください。" };
 
-  const { error } = await supabase.from("qa_logs").insert({
-    user_id: profile.id,
+  // 質問は職員とのトーク（messages）に1発言として入る。返事も同じトークに届く
+  const { error } = await supabase.from("messages").insert({
+    trainee_id: profile.id,
+    sender_id: profile.id,
+    sender_kind: "trainee",
+    sender_name: profile.display_name,
     assignment_id: assignmentId,
-    question,
-    needs_staff: true,
+    body: question,
   });
-  if (error) return { error: "送信に失敗しました。もう一度試してください。" };
+  if (error) return { error: describeMessagesError(error) };
 
   if (assignmentId) {
     await supabase.from("progress_logs").insert({
@@ -204,5 +208,7 @@ export async function askQuestion(
     revalidatePath(`/tasks/${assignmentId}`);
   }
   revalidatePath("/messages");
+  revalidatePath("/staff/messages");
+  revalidatePath("/staff");
   return { error: null, success: true };
 }

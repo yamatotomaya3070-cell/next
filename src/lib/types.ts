@@ -395,6 +395,25 @@ export interface QaLog {
   created_at: string;
 }
 
+/** メッセージの発言者の種別（supabase/migrations/00020_messages.sql と対応） */
+export type MessageSenderKind = "trainee" | "staff" | "ai";
+
+/** 利用者と職員のチャット1発言（messages テーブル） */
+export interface ChatMessage {
+  id: string;
+  /** トークの持ち主（利用者） */
+  trainee_id: string;
+  sender_id: string | null;
+  sender_kind: MessageSenderKind;
+  /** 送信時点の表示名（利用者は職員名を profiles から読めないため保持） */
+  sender_name: string;
+  assignment_id: string | null;
+  body: string;
+  /** 相手側が読んだ時刻。未読なら null */
+  read_at: string | null;
+  created_at: string;
+}
+
 /** 提出動画の機械検品ジョブ（supabase/migrations/00008_submission_inspections.sql と対応） */
 export type SubmissionInspectionStatus =
   | "pending"

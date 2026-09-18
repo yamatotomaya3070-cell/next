@@ -260,34 +260,6 @@ export async function recordTransferApproval(
   return { error: null, success: true };
 }
 
-/** 質問に回答 */
-export async function answerQuestion(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireRole("staff", "admin");
-  const supabase = await createClient();
-
-  const qaId = String(formData.get("qa_id") ?? "");
-  const answer = String(formData.get("answer") ?? "").trim();
-  if (!qaId || !answer) return { error: "回答を入力してください。" };
-
-  const { error } = await supabase
-    .from("qa_logs")
-    .update({
-      answer,
-      answered_by: "staff",
-      needs_staff: false,
-      answered_at: new Date().toISOString(),
-    })
-    .eq("id", qaId);
-  if (error) return { error: "回答の保存に失敗しました。" };
-
-  revalidatePath("/staff");
-  revalidatePath("/staff/messages");
-  return { error: null, success: true };
-}
-
 /** 利用者のアクセシビリティ設定を更新（職員 or 本人） */
 export async function updateAccessibilitySettings(
   _prev: ActionState,

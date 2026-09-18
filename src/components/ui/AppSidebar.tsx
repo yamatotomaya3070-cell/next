@@ -135,7 +135,8 @@ export function AppSidebar({ items, storageKey = "sidebar" }: AppSidebarProps) {
   const isActive = (href: string): boolean => {
     const target = parseHref(href);
     if (target.pathname !== pathname) return false;
-    return target.status === currentStatus;
+    // 「受注案件」のように status を持たない項目は、絞り込み中(?status=...)でも現在地とする
+    return target.status === null || target.status === currentStatus;
   };
 
   return (
@@ -245,7 +246,8 @@ export function MobileNav({ items }: { items: SidebarItem[] }) {
         .map((item) => {
           const target = parseHref(item.href);
           const active =
-            target.pathname === pathname && target.status === currentStatus;
+            target.pathname === pathname &&
+            (target.status === null || target.status === currentStatus);
           return (
             <Link
               key={item.label}

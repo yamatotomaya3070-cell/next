@@ -284,3 +284,35 @@ tsc / vitest 100件 通過。
 - 生成側: 案件ごとの手順書を作らない・見本に場面名を入れない(既定OFF)・素材ZIPを実在ファイルで作る・説明文と提出名を題材から作る・完成見本の取り違えの逃げ道を削除。
 - 本番データ: 新しい新NISA練習案件を関門つきで登録（56ec5dab-…）、同名の古い8/30版を削除。iDeCo は scene_jobs に残っていた設計図から新しい仕組みで作り直し中。8/16「新NISAって結局何？」は就労者の提出1件（レビュー待ち）があるため、削除は確認待ち。
 - 案件を作る入口は4つ（YouTube動画生成／課題の新規作成／scripts/video の worker／CrowdWorks案件）。保証できるのは YouTube動画生成だけ。
+
+## 2026-09-18 午後（確認のみ・変更なし）：手順書で完成できるか／このPCに依存していないか
+
+依頼: 「現状の手順書で不愉快なく動画の完成ができるか」「このPCに依存していないか」の2点を確認。コード・本番は変更していない（.tmp_read に読み取り専用スクリプト list_tasks_ro.mts / list_old_ideco_zip_ro.mts を追加しただけ）。
+
+確認した方法: 作業のしかた(workflow.ts)と教科書(chapters.ts)の全参照、セットアップZIPの中身(bat/Lua/.setting/.xml)、支給素材ZIPの中身、本番の案件と資料一覧(読み取り)、本番の操作動画7本とZIPの到達性、vitest 116件・tsc 通過、iDeCo v2 パッケージを関門にかけて OK（7965f／見本7967f、セリフ41本、映像13本）。実機 Resolve の通しは今回は行っていない（09-18 午前に本PCで検証済み）。
+
+見つかったこと（手順で詰まる順）:
+1. 本番に古い iDeCo（72688600、8/17、配布0）が残っている。素材ZIPは旧形式（場面の映像mp4なし・区切りが\・手順書.md入り）なのに media_url が scene-nisa/ なので「絆_素材を並べる」の手順が出る → 実行すると赤い「置けなかったもの」になる。配布すると必ず詰まる。iDeCo v2 は関門OKなので、登録して旧を削除すれば解消（前回の Exact Next Step のまま）。
+2. 支給素材ZIPの「はじめに.txt」（build_materials.mjs）が「手順書.md を上から順番にやる」と書き手順書.md を列挙しているが、ZIPに手順書.md は無い（新NISA 56ec5dab・iDeCo v2 とも）。文面を「アプリの作業のしかた」に直して再ZIPが必要。
+3. 教科書6章テロップの「始まりと終わりは作業指示一覧の補足に合わせる」は、アプリの作業指示一覧に「補足」欄が無いので合わない（CSVにはある）。作業のしかた本文とアプリ表は一致（文字がある行のセリフの頭から場面の終わりまで＝2つ目のセリフ）。CSVはテロップ文字が場面の1行目にあり、アプリ表は2行目にあるので読み分けに差がある。
+4. 書き出しプリセット 絆_YouTube_720p.xml に RecordPrefix「新NISA_完成動画」と RecordTargetDir「C:\Users\yamat\Videos」が焼き込まれている。ファイル名と保存先は手順で入れ直すので実害は低いが、他題材でも初期値が新NISAになる。
+5. ZIPに 図解/立ち絵/背景 フォルダと、CSVの「立ち絵素材名」「空ける間(フレーム)」列が残っている。作業のしかたでは使わない。
+6. ワーカー(scripts/scene/worker.ts)は今も build_manual.mjs で手順書.md を作っている（ZIPには入らないので無害だが無駄）。
+
+PC依存:
+- 就労者の編集: どのWindows PCでも可。必要なのは Resolve 21 と教科書10章のZIP（本番で配信中・git管理・13KB）。bat は %APPDATA% 基準で固定パス無し。字幕の型と完成見本は同じ Yu Gothic UI（Windows標準）。Mac は手コピーで字体も変わる。
+- アプリ本体: Vercel＋Supabase。本番 = git 696f5a0 = origin/main。
+- 依存が残る所: (a) 「YouTube動画生成」の処理は職員PCのワーカー常駐が前提（start-worker.bat）。今この PC でもワーカーは起動していない（next dev だけ）ので、職員がジョブを作っても「待機中」のまま。Docker版は SCENE パイプラインで未検証（Linux は Noto フォントになり見本の字体が変わる、gen_intro_outro の SAPI 代替は Gemini キーがあれば不要）。(b) セットアップZIPの元ファイル 05_テンプレート（bat/Lua/.setting/.xml）は .gitignore で git 管理外＝この PC の OneDrive にしか無い。(c) iDeCo v2 の作り直し結果は poc/scene/out（git管理外）にしか無い。
+
+## 2026-09-18 夕方 — メッセージをLINE風チャットに作り替え＋利用者メニュー統合（Claude）
+
+依頼: /messages が見えにくいので LINE のようなチャット形式に。職員は利用者ごと、利用者は /messages から送信できる形。あわせて利用者メニューの「受注案件/作業中/提出/修正依頼/実績」は「受注案件」1本にまとめ、ページ内で「未着手/作業中/レビュー待ち/修正依頼/完了」に絞り込む。
+
+- **データ**: 旧 qa_logs は「質問1:回答1」でチャットにならないため、`supabase/migrations/00020_messages.sql` で `messages`（1行=1発言、trainee_id=トークの持ち主、sender_kind trainee/staff/ai、sender_name はスナップショット、read_at=相手が読んだ時刻）を新設。RLS は利用者=自分のトークのみ／職員=全部、update は read_at 列だけ許可。Realtime publication に追加。既存 qa_logs の質問→利用者の発言、回答→職員/AIの発言として取り込む（qa_logs は残す・以後は書かない）。**本番 Supabase への適用は未実施（SQL Editor で 00020 を流す必要あり）。未適用のまま開くと「migration 00020 未適用」の案内が出る。**
+- **画面**: `src/components/chat/`（ChatFrame/ChatThread/MessageBubble/ChatComposer/DateDivider/useLiveMessages）。吹き出し（自分=右・青、相手=左・白、AIはロボットアイコン）、日付区切り、既読、案件タグ、下部固定の入力欄（Enter送信・Shift+Enter改行・IME確定Enterは送らない）。新着は Realtime＋8秒ポーリング、開いたら相手の発言を既読化。
+  - 利用者 `/messages`: 職員との1本のトーク。案件は入力欄上の「案件を選ぶ（任意）」で付けられる。
+  - 職員 `/staff/messages?user=<id>`: 左に利用者一覧（未読数・最終メッセージ・未読優先の並び）、右にトーク。スマホは一覧かトークの一方のみ（←で戻る）。
+  - 職員ホーム: 「未回答の質問」→「未読のメッセージ」（クリックでそのトークへ）。AnswerForm と answerQuestion は削除。案件詳細の「質問する」フォームは messages に書くよう変更（返事は /messages に届く旨を表示）。
+- **メニュー統合**: TRAINEE_NAV から作業中/提出/修正依頼/実績を削除し「受注案件」のみ。サイドバーは `?status=` 付きでも受注案件をアクティブ表示。/works の絞り込みチップに状態ごとの件数を表示。
+- **検証**: vitest 129件（messages ヘルパー13件追加）、tsc、eslint（新規エラー0）。dev 限定 `/local-preview/messages`（`?as=staff`）で PC 幅・390px 幅とも目視確認、送信→吹き出し追加→最下部追従を確認。ログイン後の実ページは migration 未適用のため未確認（ユーザー側で 00020 適用後に /messages・/staff/messages・/works を確認してください）。
+- 未コミット・未デプロイ（指示待ち）。開発サーバーは既存の 3124 を利用。

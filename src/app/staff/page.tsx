@@ -2,8 +2,8 @@ import Link from "next/link";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import type {
   AssignmentStatus,
+  ChatMessage,
   Profile,
-  QaLog,
   TaskType,
 } from "@/lib/types";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -24,12 +24,12 @@ import {
   IconClipboard,
   IconGlobe,
   IconHome,
+  IconMessage,
   IconRobot,
   IconSparkles,
   IconUpload,
   IconUsers,
 } from "@/components/ui/icons";
-import { AnswerForm } from "./AnswerForm";
 import {
   TraineeProgressTable,
   type TraineeProgressRow,
@@ -116,10 +116,10 @@ export default async function StaffDashboardPage() {
       )
       .order("created_at", { ascending: false }),
     supabase
-      .from("qa_logs")
+      .from("messages")
       .select("*")
-      .eq("needs_staff", true)
-      .is("answer", null)
+      .eq("sender_kind", "trainee")
+      .is("read_at", null)
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
@@ -156,7 +156,8 @@ export default async function StaffDashboardPage() {
 
   const trainees = (traineesData ?? []) as Profile[];
   const assignments = (assignmentsData ?? []) as unknown as AssignmentRow[];
-  const questions = (questionsData ?? []) as QaLog[];
+  // 利用者からの未読メッセージ（返事は /staff/messages のトークで行う）
+  const unreadMessages = (questionsData ?? []) as ChatMessage[];
   const submissions = (submissionsData ?? []) as SubmissionRow[];
   const approvedFb = (approvedFbData ?? []) as FeedbackRow[];
   const pendingFb = (pendingFbData ?? []) as FeedbackRow[];
@@ -541,44 +542,45 @@ export default async function StaffDashboardPage() {
         </SectionCard>
       </div>
 
-      {/* 未回答の質問（既存機能） */}
-      {questions.length > 0 && (
+      {/* 利用者からの未読メッセージ */}
+      {unreadMessages.length > 0 && (
         <div className="mt-6">
-          <SectionCard title="未回答の質問" icon={<IconRobot />}>
-            <div className="space-y-4">
-              {questions.map((q) => (
-                <div
-                  key={q.id}
-                  className="rounded-xl border border-line bg-page/50 p-4"
-                >
-                  <p className="text-xs text-ink-soft">
-                    {traineeName(q.user_id)} さん ・{" "}
-                    {new Date(q.created_at).toLocaleString("ja-JP")}
-                  </p>
-                  {questionTaskTitle(q.assignment_id) ? (
-                    <p className="mt-1 text-xs font-medium text-primary-dark">
-                      案件: {questionTaskTitle(q.assignment_id)}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-ink-soft">
-                      案件に関係しない質問
-                    </p>
-                  )}
-                  <p className="mt-1 font-bold text-ink">{q.question}</p>
-                  <div className="mt-3">
-                    <AnswerForm qaId={q.id} />
-                  </div>
-                </div>
+          <SectionCard
+            title={`未読のメッセージ（${unreadMessages.length}件）`}
+            icon={<IconMessage />}
+            action={{ label: "メッセージを開く", href: "/staff/messages" }}
+          >
+            <ul className="divide-y divide-line">
+              {unreadMessages.map((m) => (
+                <li key={m.id}>
+                  <Link
+                    href={`/staff/messages?user=${m.trainee_id}`}
+                    className="flex items-start gap-3 rounded-xl px-2 py-3 transition hover:bg-page"
+                  >
+                    <UserAvatar name={traineeName(m.trainee_id)} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
+                        <span className="font-bold text-ink">
+                          {traineeName(m.trainee_id)} さん
+                        </span>
+                        <span>{new Date(m.created_at).toLocaleString("ja-JP")}</span>
+                        {questionTaskTitle(m.assignment_id) && (
+                          <span className="font-medium text-primary-dark">
+                            案件: {questionTaskTitle(m.assignment_id)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block truncate text-[15px] text-ink">
+                        {m.body}
+                      </span>
+                    </span>
+                    <span className="shrink-0 self-center text-xs font-bold text-primary">
+                      返事をする →
+                    </span>
+                  </Link>
+                </li>
               ))}
-            </div>
-            <div className="mt-4 text-right">
-              <Link
-                href="/staff/messages"
-                className="font-bold text-primary hover:text-primary-dark hover:underline"
-              >
-                メッセージをすべて見る →
-              </Link>
-            </div>
+            </ul>
           </SectionCard>
         </div>
       )}

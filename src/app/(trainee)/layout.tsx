@@ -13,11 +13,9 @@ export const dynamic = "force-dynamic";
 
 const TRAINEE_NAV: SidebarItem[] = [
   { href: "/home", label: "ホーム", icon: "home" },
+  // 案件の状態（未着手/作業中/レビュー待ち/修正依頼/完了）は
+  // 受注案件ページ内の絞り込みで切り替える（メニューには分けて出さない）
   { href: "/works", label: "受注案件", icon: "briefcase" },
-  { href: "/works?status=in_progress", label: "作業中", icon: "play" },
-  { href: "/works?status=submitted", label: "提出", icon: "upload" },
-  { href: "/works?status=feedback", label: "修正依頼", icon: "edit" },
-  { href: "/works?status=completed", label: "実績", icon: "trophy" },
   { href: "/guide", label: "動画編集の教科書", icon: "book" },
   { href: "/messages", label: "メッセージ", icon: "message" },
   { href: "/support", label: "サポート", icon: "help" },

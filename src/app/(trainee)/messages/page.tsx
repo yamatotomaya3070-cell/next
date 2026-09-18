@@ -1,26 +1,22 @@
 import { requireProfile, createClient } from "@/lib/supabase/server";
-import type { QaLog, Task, TaskAssignment } from "@/lib/types";
+import type { Task, TaskAssignment } from "@/lib/types";
+import { loadThread } from "@/lib/messages/load";
 import { PageContainer } from "@/components/ui/PageContainer";
-import { SectionCard } from "@/components/ui/SectionCard";
-import { EmptyState, ErrorState } from "@/components/ui/states";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { IconMessage } from "@/components/ui/icons";
-import { QuestionForm, type QuestionTaskOption } from "@/components/QuestionForm";
+import { ErrorState } from "@/components/ui/states";
+import { IconUsers } from "@/components/ui/icons";
+import { ChatFrame, ChatViewport } from "@/components/chat/ChatFrame";
+import { ChatThread } from "@/components/chat/ChatThread";
+import type { ComposerTaskOption } from "@/components/chat/ChatComposer";
 
 export const dynamic = "force-dynamic";
 
-/** 質問と回答のやりとり一覧（qa_logs）＋ その場で質問を送るフォーム */
+/** 利用者向け: 職員とのトーク（LINE風）。質問も返事もここで1本につながる */
 export default async function MessagesPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
-  const [qaRes, assignmentRes] = await Promise.all([
-    supabase
-      .from("qa_logs")
-      .select("*")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false })
-      .limit(50),
+  const [thread, assignmentRes] = await Promise.all([
+    loadThread(supabase, profile.id),
     supabase
       .from("task_assignments")
       .select("id, status, tasks(title)")
@@ -29,97 +25,56 @@ export default async function MessagesPage() {
       .order("created_at", { ascending: false }),
   ]);
 
-  if (qaRes.error) {
+  if (thread.error || !thread.data) {
     return (
       <PageContainer>
-        <ErrorState />
+        <ErrorState
+          title="メッセージを読み込めませんでした"
+          description={thread.error ?? undefined}
+        />
       </PageContainer>
     );
   }
-
-  const logs = (qaRes.data ?? []) as QaLog[];
 
   const assignments = (assignmentRes.data ?? []) as unknown as (Pick<
     TaskAssignment,
     "id" | "status"
   > & { tasks: Pick<Task, "title"> | null })[];
-
-  const taskOptions: QuestionTaskOption[] = assignments
+  const taskOptions: ComposerTaskOption[] = assignments
     .filter((a) => a.tasks?.title)
     .map((a) => ({ assignmentId: a.id, title: a.tasks!.title }));
 
-  // 一覧で「どの案件についての質問か」を表示するための対応表
-  const titleByAssignment = new Map(
-    taskOptions.map((opt) => [opt.assignmentId, opt.title]),
-  );
+  // 進行中の案件名も対応表に足しておく（送った直後の吹き出しに案件名を出すため）
+  const assignmentTitles = {
+    ...Object.fromEntries(taskOptions.map((o) => [o.assignmentId, o.title])),
+    ...thread.data.assignmentTitles,
+  };
 
   return (
-    <PageContainer>
-      <h1 className="text-xl font-bold text-ink">メッセージ</h1>
-      <p className="mt-1 text-sm text-ink-soft">
-        職員への質問は、ここからいつでも送れます。作業の途中でも、案件が決まっていなくても大丈夫です。
-      </p>
-
-      <div className="mt-6">
-        <SectionCard title="質問を送る" icon={<IconMessage />}>
-          <QuestionForm taskOptions={taskOptions} />
-        </SectionCard>
-      </div>
-
-      <h2 className="mt-8 text-lg font-bold text-ink">これまでのやりとり</h2>
-
-      {logs.length === 0 ? (
-        <div className="mt-4">
-          <EmptyState
-            icon={<IconMessage />}
-            title="まだメッセージはありません"
-            description="困ったことがあれば、上のフォームから気軽に質問してください。"
-          />
-        </div>
-      ) : (
-        <div className="mt-4 space-y-4">
-          {logs.map((log) => {
-            const taskTitle = log.assignment_id
-              ? titleByAssignment.get(log.assignment_id)
-              : null;
-            return (
-              <SectionCard key={log.id}>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-                  <span>
-                    {new Date(log.created_at).toLocaleString("ja-JP", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </span>
-                  {taskTitle && (
-                    <StatusBadge label={taskTitle} tone="neutral" size="sm" />
-                  )}
-                  {log.answer ? (
-                    <StatusBadge label="回答あり" tone="success" size="sm" />
-                  ) : (
-                    <StatusBadge label="回答待ち" tone="warning" size="sm" />
-                  )}
-                </div>
-                <p className="mt-2 rounded-xl bg-page p-3 text-[15px] leading-relaxed text-ink">
-                  <span className="mb-1 block text-xs font-bold text-ink-soft">
-                    あなたの質問
-                  </span>
-                  {log.question}
-                </p>
-                {log.answer && (
-                  <p className="mt-2 rounded-xl bg-primary-soft/60 p-3 text-[15px] leading-relaxed text-ink">
-                    <span className="mb-1 block text-xs font-bold text-primary-dark">
-                      {log.answered_by === "ai" ? "作業サポートAI" : "スタッフ"}
-                      からの回答
-                    </span>
-                    {log.answer}
-                  </p>
-                )}
-              </SectionCard>
-            );
-          })}
-        </div>
-      )}
-    </PageContainer>
+    <ChatViewport>
+      <ChatFrame
+        title="職員とのやりとり"
+        subtitle="困ったことは、いつでもここから聞けます"
+        avatar={
+          <span
+            aria-hidden
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"
+          >
+            <IconUsers />
+          </span>
+        }
+        className="flex"
+      >
+        <ChatThread
+          traineeId={profile.id}
+          viewerKind="trainee"
+          viewerName={profile.display_name}
+          initialMessages={thread.data.messages}
+          assignmentTitles={assignmentTitles}
+          taskOptions={taskOptions}
+          emptyHint="まだメッセージはありません。わからないことがあれば、下の入力欄から気軽に送ってください。職員からの返事もここに届きます。"
+        />
+      </ChatFrame>
+    </ChatViewport>
   );
 }

@@ -30,6 +30,8 @@
   --color-danger-soft: #fdeceb;
   --color-accent-purple: #8b5cf6;
   --color-accent-purple-soft: #f1ebfd;
+  /* チャット画面の背景（白い吹き出しが浮く程度の淡い青） */
+  --color-chat: #e6edf6;
 
   /* フォント（日本語が読みやすいスタック） */
   --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",

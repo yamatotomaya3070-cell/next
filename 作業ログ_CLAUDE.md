@@ -366,3 +366,9 @@ PC依存:
 - 修正2: worker.ts の作業フォルダを os.tmpdir()/kizuna-scene（SCENE_WORK_ROOT で変更可）に移し、render_project / build_materials へ SCENE_WORK_DIR / SCENE_VOX_DIR / SCENE_VISUAL_ASSET_DIR で渡す。rmSync は maxRetries=10。render_project.mjs のフレーム掃除を bash rm → readdirSync/unlinkSync に変更。tsc・node --check・空起動OK。未コミット
 - 完了(21:14): iDeCo task=247d0734（14シーン・4分48秒・無音なし）、相続税(初心者) task=77f29a8b（12シーン・4分28秒・無音なし、修正版コードで生成。Temp/kizuna-scene で描画、フレーム掃除も効いて残り29ファイル）。ワーカーは自動終了（run3 ログ）。AC電源＋Temp では1件25分程度
 - 残課題: ①相続税(会計士) 757a4a2b の S12 無音1行（再生成するか判断待ち）②render_project.mjs / worker.ts の修正をコミット・push（職員PC導入前に必須）③scene worker の多重起動対策（locked_by 条件・stale 引き継ぎ）④シーン並列化で高速化
+
+## 2026-09-19 深夜：相続税(会計士)の再生成と修正のコミット
+
+- 旧 task 757a4a2b（S12 無音1行）と Storage を削除し、scene_jobs 0837b376 を pending に戻して修正版ワーカーで再生成 → task=edb85915（12シーン・3分32秒・セリフ26本・無音なし）。ワーカー自動終了
+- コミット 1e39e9d を origin/main へ push（render_project.mjs の TTS 指示＋フレーム掃除、worker.ts の作業フォルダ移設＋rmSync 再試行、作業ログ）。vitest 130件通過
+- 残課題: scene worker の多重起動対策（claim 条件に locked_by is null／stale 引き継ぎ）、シーン並列化

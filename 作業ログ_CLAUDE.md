@@ -346,3 +346,23 @@ PC依存:
 - 5章の subtitles#custom を4節に分割（①置く／②文字の見た目／③位置と縁取り／④コピーで増やす）。6章 telop#custom に画像。作業のしかたの参照 subtitles#custom / telop#custom は据え置き
 - 実機で分かった注意（教科書にも記載）: インスペクタの数字欄で Ctrl+A を押すとタイムラインの全クリップが選択され、変更が全部に入る。数字欄はクリックしてそのまま数字を打つ。{END}/{BACKSPACE} もタイムラインに飛ぶ
 - 検証プロジェクトは保存して Resolve を最小化に戻した（タイムライン「外部案件の例」は残置）
+
+## 2026-09-18 夜②（確認のみ）：リリース可否と要件の到達度
+
+- 本番: git 041e590 = Vercel Ready。DB は 00001〜00020 のうち real_cases / material_answers / video_templates / practice_jobs の4テーブルが無いが、現在の画面はどれも参照していない（practice_jobs は actions のみで UI 無し）。messages(00020) は適用済み（11件）。
+- 本番データ: 職員1・利用者1、案件2（新NISA=本日16:59に利用者へ配布 in_progress、旧iDeCo=旧形式のまま残存）、提出0、scene_jobs に「相続税」2件が本日から待機中（ワーカー未起動のため）。
+- 結論: 練習LMS＋絆案件の範囲は「条件付きで可」。塞ぐべきは ①ワーカー常駐先の決定と起動 ②旧iDeCo置換 ③支給ZIPの はじめに.txt。要件定義書v2のフェーズ2（アプリ内エディタ）は 07-20 にスコープ外決定、フェーズ3のメール自動取り込み・フェーズ4の LINE は未実装。Astra6 指示書の完了条件16項目は 11✅ 3⚠️ 2❌（教材のバージョン管理・教材進捗の職員確認）。
+
+## 2026-09-18 夜③：iDeCo案件の作り直しと相続税2件の生成（このPCでワーカーを一時起動）
+
+- 調査: 「動画が生成されない」原因は scene worker が1台も動いていなかったこと。タスクスケジューラ KizunaVideoWorker は旧 video_jobs 用（15分ごとに「処理待ちなし」）で scene_jobs は見ない。絆_素材を並べる.lua は S01_*.mp4 / S01_01_*.wav / オープニング / エンディング / BGM を探す設計で、b13d93e（映像mp4素材）以降に生成した案件なら全部並ぶ。旧形式（図解PNGのみ）の既存案件では映像が並ばない
+- 削除: 旧 iDeCo 案件 tasks 72688600（割当0・提出0）、Storage scene-nisa/72688600/{sample.mp4,assets.zip}、scene_jobs 1eb3f02b / bfbb0500。新規 scene_jobs 69577ea6（iDeCo・投資初心者・6分・難易度3）を pending 登録
+- 相続税は2件とも別条件（0837b376=会計士・難易度4、bfcd66fb=投資初心者・難易度3）なので両方処理
+- 失敗と復旧: Bash ツール経由で起動した worker を止めた際に子プロセス起動が壊れ、3件が render_project で即失敗 → 3件を pending に戻し、PowerShell Start-Process（隠し窓）で `npm run scene:worker`（--watch なし＝処理後に自動終了）を起動。ログ scripts/output/scene-worker-2026-09-18_run2.log
+- 速度: 1件40分前後（12シーン）。描画は1コア占有の逐次処理（1フレーム2枚PNG化）で、しかもバッテリー駆動だった。AC接続を依頼。根本対策はシーン並列化（未着手）
+- 修正: render_project.mjs の TTS プロンプト。「ミナ先生、今日もありがとうございました！」を Gemini TTS が自分宛ての会話と誤解し 400「Model tried to generate text」→無音1.5秒になっていた。「あなたは声優です。次の【読み上げ原稿】を一字一句そのまま…」に変更し、単体で通ることを確認。エラー本文もログに出すようにした。相続税(会計士)の1件目は修正前に走ったため S12 の4行目が無音（要再生成）
+- 完了: 相続税(会計士) task=757a4a2b。素材/映像 は S01〜S12 全部 mp4＋オープニング/エンディング（Lua対応形式の初案件）。S12 の1行だけ無音
+- 失敗2: 相続税(初心者) bfcd66fb が worker.ts の rmSync(poc/scene/out/work) で EPERM。原因は OneDrive 配下で数万枚のフレームPNGを同期中に消せないこと（bash 経由の逐次掃除も効いていなかった）。手で work を消して iDeCo は続行、bfcd66fb は failed で一時保留 → iDeCo 完了・ワーカー自然終了後に pending へ戻して新コードで再起動する
+- 修正2: worker.ts の作業フォルダを os.tmpdir()/kizuna-scene（SCENE_WORK_ROOT で変更可）に移し、render_project / build_materials へ SCENE_WORK_DIR / SCENE_VOX_DIR / SCENE_VISUAL_ASSET_DIR で渡す。rmSync は maxRetries=10。render_project.mjs のフレーム掃除を bash rm → readdirSync/unlinkSync に変更。tsc・node --check・空起動OK。未コミット
+- 完了(21:14): iDeCo task=247d0734（14シーン・4分48秒・無音なし）、相続税(初心者) task=77f29a8b（12シーン・4分28秒・無音なし、修正版コードで生成。Temp/kizuna-scene で描画、フレーム掃除も効いて残り29ファイル）。ワーカーは自動終了（run3 ログ）。AC電源＋Temp では1件25分程度
+- 残課題: ①相続税(会計士) 757a4a2b の S12 無音1行（再生成するか判断待ち）②render_project.mjs / worker.ts の修正をコミット・push（職員PC導入前に必須）③scene worker の多重起動対策（locked_by 条件・stale 引き継ぎ）④シーン並列化で高速化

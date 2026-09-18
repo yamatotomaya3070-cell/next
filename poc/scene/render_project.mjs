@@ -3,7 +3,7 @@
 //   使い方: node poc/scene/render_project.mjs [project.json] [out.mp4] [SCENE_LIMIT]
 import sharp from 'sharp';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderSubtitle, renderSection, inject } from '../infographic/overlay.mjs';
@@ -54,7 +54,9 @@ async function synthLine(line, file) {
   }
   const style = `${SECTION_JA[line._section] || ''}の場面。${line.emotion}・${line.deliveryStyle}で、${line.speakingRate === 'slow' ? 'ゆっくり' : line.speakingRate === 'fast' ? 'やや速く' : '自然な速さで'}、抑揚をつけて読んで。`;
   const notes = GEN_NOTES ? `\n【表記・発音の注意（必ず守る）】\n${GEN_NOTES}` : '';
-  const prompt = `${style}${notes}\n---\n${line.text}`;
+  // 「ミナ先生、ありがとう！」のような呼びかけ文を、TTSモデルが自分宛ての会話と誤解して返事を生成しようとし
+  // 400 (Model tried to generate text) になる。読み上げ原稿だと明示して、原稿以外を生成させない。
+  const prompt = `あなたは声優です。次の【読み上げ原稿】を一字一句そのまま音声にしてください。原稿への返事や、原稿にない言葉は一切加えないでください。\n読み方: ${style}${notes}\n【読み上げ原稿】\n${line.text}`;
   for (let a = 1; a <= 3; a++) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${KEY}`, {
@@ -62,7 +64,7 @@ async function synthLine(line, file) {
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE[line.speaker] || 'Charon' } } } } }),
         signal: AbortSignal.timeout(120000),
       });
-      if (!r.ok) throw new Error('tts ' + r.status);
+      if (!r.ok) throw new Error('tts ' + r.status + ' ' + (await r.text()).replace(/\s+/g, ' ').slice(0, 200));
       const j = await r.json();
       const b64 = j.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!b64) throw new Error('no audio');
@@ -77,7 +79,8 @@ async function main() {
   let scenes = project.scenes;
   if (LIMIT > 0) scenes = scenes.slice(0, LIMIT);
   console.log(`レンダ対象: ${scenes.length}シーン / 声=${KEY ? 'Gemini TTS' : '無音'}`);
-  rmSync(WORK, { recursive: true, force: true }); mkdirSync(WORK, { recursive: true });
+  // 同期ソフト等が掴んでいても消せるよう再試行（OneDrive 配下で EPERM になった実績あり）
+  rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 }); mkdirSync(WORK, { recursive: true });
   mkdirSync(`${WORK}/visual_assets`, { recursive: true });
   mkdirSync(VOX, { recursive: true });
 
@@ -160,7 +163,12 @@ async function main() {
       '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-movflags', '+faststart', `${WORK}/visual_assets/visual_${tag}.mp4`]);
     clips.push(clip);
     // フレーム掃除（音声は残す=再開時キャッシュ）
-    spawnSync('bash', ['-c', `rm -f ${WORK}/f_${tag}_*.png ${WORK}/v_${tag}_*.png ${WORK}/t_*.png`]);
+    // bash 経由だと Windows のパス（\ や日本語）で消せず数万枚が残り、次の案件の削除が失敗する。Node で直接消す
+    const isDone = (name) => name.startsWith(`f_${tag}_`) || name.startsWith(`v_${tag}_`) || name.startsWith('t_');
+    for (const name of readdirSync(WORK)) {
+      if (!isDone(name) || !name.endsWith('.png')) continue;
+      try { unlinkSync(`${WORK}/${name}`); } catch { /* 掴まれていたら次の案件の rmSync（再試行つき）に任せる */ }
+    }
   }
 
   // 4) 本編を連結 → 本編にだけ body BGM を敷く（opening/ending は自前BGM内包＝二重掛け回避）

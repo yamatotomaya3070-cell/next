@@ -5,7 +5,8 @@
 //           npm run scene:worker -- --watch  （常駐してポーリング）
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { hostname } from "node:os";
+import { hostname, tmpdir } from "node:os";
+import { join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateVideoProject } from "@/lib/scene/generate";
 import { validateVideoProject } from "@/lib/scene/validate";
@@ -24,6 +25,13 @@ if (existsSync(".env.local")) {
 const WORKER_ID = `${hostname()}:${process.pid}`;
 const POLL_MS = Number(process.env.SCENE_WORKER_POLL_MS ?? 15000);
 const OUT_ROOT = "poc/scene/out";
+// レンダ中の作業ファイル（1案件で数万枚のフレームPNG）は OneDrive 等の同期フォルダ外に置く。
+// プロジェクトが OneDrive 配下にあると、同期中のファイルを消せず EPERM で案件が失敗する。
+const WORK_ROOT = (process.env.SCENE_WORK_ROOT || join(tmpdir(), "kizuna-scene")).replace(/\\/g, "/");
+const WORK_DIR = `${WORK_ROOT}/work`;
+const VOX_DIR = `${WORK_ROOT}/vox`;
+// 同期ソフトやウイルス対策が一瞬ファイルを掴んでいても消せるように、少し待って再試行する
+const RM_OPTS = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 } as const;
 
 function sb(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -55,7 +63,7 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
   const projectPath = `${dir}/project.json`;
   const videoPath = `${dir}/sample.mp4`;
   const pkgDir = `${dir}/package`;
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, RM_OPTS);
   mkdirSync(dir, { recursive: true });
 
   // 生成ナレッジ（過去の不備・発音指摘）を取得し、台本生成とTTSの両方に反映する
@@ -90,13 +98,14 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
 
   // 2) 完成見本レンダリング（音声キャッシュはテーマ依存なので毎回クリア）
   await setStatus(client, job.id, "rendering_video", 30);
-  rmSync(`${OUT_ROOT}/vox`, { recursive: true, force: true });
-  rmSync(`${OUT_ROOT}/work`, { recursive: true, force: true });
-  runScript(["poc/scene/render_project.mjs", projectPath, videoPath], genNotes ? { GEN_NOTES: genNotes } : {});
+  rmSync(VOX_DIR, RM_OPTS);
+  rmSync(WORK_DIR, RM_OPTS);
+  const workEnv = { SCENE_WORK_DIR: WORK_DIR, SCENE_VOX_DIR: VOX_DIR, SCENE_VISUAL_ASSET_DIR: `${WORK_DIR}/visual_assets` };
+  runScript(["poc/scene/render_project.mjs", projectPath, videoPath], { ...workEnv, ...(genNotes ? { GEN_NOTES: genNotes } : {}) });
 
   // 3) no-telop素材の書き出し
   await setStatus(client, job.id, "building_materials", 60);
-  runScript(["poc/scene/build_materials.mjs", projectPath, pkgDir], { SAMPLE_VIDEO: videoPath });
+  runScript(["poc/scene/build_materials.mjs", projectPath, pkgDir], { ...workEnv, SAMPLE_VIDEO: videoPath });
 
   // 4) 手順書・依頼書・タイムライン・チェックリスト生成
   await setStatus(client, job.id, "building_manual", 78);

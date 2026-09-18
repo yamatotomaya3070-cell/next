@@ -72,7 +72,7 @@ export const ASSIGNMENT_STATUS_LABELS: Record<
   in_progress: { label: "作業中", color: "bg-primary-soft text-primary-dark" },
   submitted: { label: "レビュー待ち", color: "bg-warning-soft text-amber-700" },
   feedback: {
-    label: "レビュー結果あり",
+    label: "やり直し依頼中",
     color: "bg-accent-purple-soft text-accent-purple",
   },
   completed: { label: "完了", color: "bg-success-soft text-success" },
@@ -112,6 +112,8 @@ export interface ManualStep {
   text: string;
   tip?: string | null;
   image_url?: string | null;
+  /** 動画編集の教科書へのリンク（"subtitles#place" のように 章slug#節id）。src/lib/guide/chapters.ts 参照 */
+  guide?: string | null;
 }
 
 /**

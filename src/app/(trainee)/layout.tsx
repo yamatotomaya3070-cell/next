@@ -18,6 +18,7 @@ const TRAINEE_NAV: SidebarItem[] = [
   { href: "/works?status=submitted", label: "提出", icon: "upload" },
   { href: "/works?status=feedback", label: "修正依頼", icon: "edit" },
   { href: "/works?status=completed", label: "実績", icon: "trophy" },
+  { href: "/guide", label: "動画編集の教科書", icon: "book" },
   { href: "/messages", label: "メッセージ", icon: "message" },
   { href: "/support", label: "サポート", icon: "help" },
 ];
@@ -26,6 +27,7 @@ const TITLE_MAP: Record<string, string> = {
   "/home": "ホーム",
   "/works": "受注案件",
   "/tasks": "案件の詳細",
+  "/guide": "動画編集の教科書",
   "/messages": "メッセージ",
   "/support": "サポート",
   "/settings": "設定",

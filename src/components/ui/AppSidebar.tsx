@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useSyncExternalStore, type ReactNode } from "react";
 import {
   IconActivity,
+  IconBook,
   IconBriefcase,
   IconChart,
   IconCheckSquare,
@@ -35,6 +36,7 @@ export type SidebarIconName =
   | "trophy"
   | "message"
   | "help"
+  | "book"
   | "users"
   | "clipboard"
   | "sparkles"
@@ -54,6 +56,7 @@ const ICONS: Record<SidebarIconName, (props: { className?: string }) => ReactNod
   trophy: IconTrophy,
   message: IconMessage,
   help: IconHelp,
+  book: IconBook,
   users: IconUsers,
   clipboard: IconClipboard,
   sparkles: IconSparkles,

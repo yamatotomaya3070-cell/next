@@ -19,6 +19,7 @@ const STAFF_NAV: SidebarItem[] = [
   { href: "/staff/scene", label: "YouTube動画生成", icon: "sparkles" },
   { href: "/staff/reviews", label: "提出レビュー", icon: "check" },
   { href: "/staff/guidelines", label: "手順の学習ルール", icon: "sparkles" },
+  { href: "/staff/guide", label: "動画編集の教科書", icon: "book" },
   { href: "/staff/messages", label: "メッセージ", icon: "message" },
 ];
 
@@ -33,6 +34,7 @@ const TITLE_MAP: Record<string, string> = {
   "/staff/video-ingests": "参考動画の学習",
   "/staff/reviews": "提出レビュー",
   "/staff/guidelines": "手順の学習ルール",
+  "/staff/guide": "動画編集の教科書",
   "/staff/messages": "メッセージ",
 };
 

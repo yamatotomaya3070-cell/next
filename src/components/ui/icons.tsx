@@ -91,6 +91,16 @@ export function IconMessage(props: IconProps) {
   );
 }
 
+export function IconBook(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
+      <path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5" />
+      <path d="M8 7h8M8 11h6" />
+    </svg>
+  );
+}
+
 export function IconHelp(props: IconProps) {
   return (
     <svg {...base(props)}>

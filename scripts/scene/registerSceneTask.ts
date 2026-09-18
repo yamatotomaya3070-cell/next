@@ -3,7 +3,8 @@
 // 完成見本は sample、支給素材一式(zip)は source_assets として materials バケットに置く。
 // 割り当ては行わない（職員が案件管理から配布する）。
 import { readFileSync, existsSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { zipPaths } from "./zipFolder";
+import { verifyPackage } from "./verifyPackage";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -12,20 +13,15 @@ export interface RegisterResult {
   artifacts: { sample_video: string; assets_zip: string };
 }
 
+// 就労者へ配る素材一式。完成見本.mp4 と内部JSON（素材一覧.json / app_task.json）は入れない。
+const SUPPLIED = ["素材", "作業指示一覧.csv", "はじめに.txt"];
+
 function zipSuppliedAssets(pkgDir: string): string {
-  // 完成見本.mp4 と内部JSON を除いた素材一式を 支給素材一式.zip にまとめる（Windows PowerShell）。
-  const zipName = "支給素材一式.zip";
-  const r = spawnSync(
-    "powershell",
-    [
-      "-NoProfile",
-      "-Command",
-      `Compress-Archive -Path '素材','タイミング表.csv','手順書.md','はじめに.txt' -DestinationPath '${zipName}' -Force`,
-    ],
-    { cwd: pkgDir, encoding: "utf8" },
-  );
-  if (r.status !== 0) throw new Error(`zip失敗: ${r.stderr?.slice(-400)}`);
-  return `${pkgDir}/${zipName}`;
+  const missing = SUPPLIED.filter((p) => !existsSync(`${pkgDir}/${p}`));
+  if (missing.length > 0) throw new Error(`素材パッケージに足りないもの: ${missing.join(", ")}`);
+  const zipFile = `${pkgDir}/支給素材一式.zip`;
+  zipPaths(pkgDir, SUPPLIED, zipFile);
+  return zipFile;
 }
 
 async function upload(sb: SupabaseClient, path: string, file: string, contentType: string) {
@@ -39,6 +35,9 @@ export async function registerSceneTask(
   opts: { pkgDir: string; staffId: string | null; difficulty: number },
 ): Promise<RegisterResult> {
   const { pkgDir, staffId, difficulty } = opts;
+  // 支給素材だけで完成見本が作れない案件は、ここで止めて登録しない
+  const check = verifyPackage(pkgDir);
+  console.log(`  関門OK: 並べた長さ ${check.totalFrames}f / 完成見本 ${check.sampleFrames}f / セリフ ${check.voices}本`);
   const P = JSON.parse(readFileSync(`${pkgDir}/app_task.json`, "utf8"));
 
   const taskId = randomUUID();
@@ -70,10 +69,9 @@ export async function registerSceneTask(
   // 3) task_materials
   const mats = [
     { kind: "request_doc", title: "お仕事の依頼書", content: P.requestDoc, steps: null, media_url: null, sort_order: 0 },
-    { kind: "manual", title: "作業のやり方（手順書）", content: null, steps: P.steps, media_url: null, sort_order: 1 },
-    { kind: "revision_note", title: "編集指示書（タイムライン）", content: P.timelineMd, steps: null, media_url: null, sort_order: 2 },
+    { kind: "revision_note", title: "作業指示一覧", content: P.timelineMd, steps: null, media_url: null, sort_order: 2 },
     { kind: "sample", title: "完成見本", content: "完成見本の動画です。編集後の仕上がりの参考にしてください。", steps: null, media_url: `${base}/sample.mp4`, sort_order: 3 },
-    { kind: "source_assets", title: "支給素材一式（ダウンロード）", content: "音声・図解・立ち絵・BGM・タイミング表・手順書が入ったZIPファイルです。", steps: null, media_url: `${base}/assets.zip`, sort_order: 4 },
+    { kind: "source_assets", title: "支給素材一式（ダウンロード）", content: "映像・音声・BGM・立ち絵・作業指示一覧が入ったZIPファイルです。「素材」フォルダをそのまま DaVinci に入れます。", steps: null, media_url: `${base}/assets.zip`, sort_order: 4 },
     { kind: "revision_note", title: "納品前チェックリスト", content: JSON.stringify(P.checklist), steps: null, media_url: null, sort_order: 9 },
   ].map((m) => ({
     ...m,

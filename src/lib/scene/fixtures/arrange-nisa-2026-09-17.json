@@ -1,0 +1,329 @@
+{
+ "note": "2026-09-17 DaVinci Resolve 21 実機で「絆_素材を並べる」を実行したタイムライン（OTIO書き出し）と、同じ素材のフレーム数",
+ "clipFrames": {
+  "S01_01_ナレーション.wav": 108,
+  "S01_02_ミナ先生.wav": 108,
+  "S01_03_ハル.wav": 106,
+  "S01_04_ミナ先生.wav": 252,
+  "S02_01_ハル.wav": 182,
+  "S02_02_ミナ先生.wav": 180,
+  "S02_03_ハル.wav": 39,
+  "S03_01_ミナ先生.wav": 190,
+  "S03_02_ハル.wav": 141,
+  "S04_01_ミナ先生.wav": 177,
+  "S04_02_ハル.wav": 142,
+  "S05_01_ミナ先生.wav": 192,
+  "S05_02_ミナ先生.wav": 249,
+  "S05_03_ハル.wav": 109,
+  "S06_01_ミナ先生.wav": 284,
+  "S06_02_ナレーション.wav": 196,
+  "S06_03_ハル.wav": 98,
+  "S07_01_ハル.wav": 150,
+  "S07_02_ミナ先生.wav": 225,
+  "S07_03_ハル.wav": 126,
+  "S08_01_ミナ先生.wav": 258,
+  "S08_02_ハル.wav": 78,
+  "S09_01_ミナ先生.wav": 192,
+  "S09_02_ミナ先生.wav": 194,
+  "S09_03_ハル.wav": 129,
+  "S10_01_ミナ先生.wav": 225,
+  "S10_02_ハル.wav": 135,
+  "S10_03_ミナ先生.wav": 258,
+  "S10_04_ハル.wav": 91,
+  "S01_会話.mp4": 619,
+  "S02_会話.mp4": 438,
+  "S03_概念図.mp4": 360,
+  "S04_概念図.mp4": 349,
+  "S05_比較図.mp4": 587,
+  "S06_数字アニメ.mp4": 614,
+  "S07_会話.mp4": 538,
+  "S08_強調テロップ.mp4": 366,
+  "S09_まとめ.mp4": 551,
+  "S10_会話.mp4": 753,
+  "エンディング.mp4": 178,
+  "オープニング.mp4": 76,
+  "BGM.wav": 319
+ },
+ "expected": {
+  "video": [
+   {
+    "name": "オープニング.mp4",
+    "start": 0,
+    "length": 75
+   },
+   {
+    "name": "S01_会話.mp4",
+    "start": 76,
+    "length": 618
+   },
+   {
+    "name": "S02_会話.mp4",
+    "start": 695,
+    "length": 437
+   },
+   {
+    "name": "S03_概念図.mp4",
+    "start": 1133,
+    "length": 359
+   },
+   {
+    "name": "S04_概念図.mp4",
+    "start": 1493,
+    "length": 348
+   },
+   {
+    "name": "S05_比較図.mp4",
+    "start": 1842,
+    "length": 586
+   },
+   {
+    "name": "S06_数字アニメ.mp4",
+    "start": 2429,
+    "length": 613
+   },
+   {
+    "name": "S07_会話.mp4",
+    "start": 3043,
+    "length": 537
+   },
+   {
+    "name": "S08_強調テロップ.mp4",
+    "start": 3581,
+    "length": 365
+   },
+   {
+    "name": "S09_まとめ.mp4",
+    "start": 3947,
+    "length": 550
+   },
+   {
+    "name": "S10_会話.mp4",
+    "start": 4498,
+    "length": 752
+   },
+   {
+    "name": "エンディング.mp4",
+    "start": 5251,
+    "length": 177
+   }
+  ],
+  "voice": [
+   {
+    "name": "S01_01_ナレーション.wav",
+    "start": 86,
+    "length": 107
+   },
+   {
+    "name": "S01_02_ミナ先生.wav",
+    "start": 200,
+    "length": 107
+   },
+   {
+    "name": "S01_03_ハル.wav",
+    "start": 315,
+    "length": 105
+   },
+   {
+    "name": "S01_04_ミナ先生.wav",
+    "start": 428,
+    "length": 251
+   },
+   {
+    "name": "S02_01_ハル.wav",
+    "start": 705,
+    "length": 181
+   },
+   {
+    "name": "S02_02_ミナ先生.wav",
+    "start": 893,
+    "length": 179
+   },
+   {
+    "name": "S02_03_ハル.wav",
+    "start": 1080,
+    "length": 38
+   },
+   {
+    "name": "S03_01_ミナ先生.wav",
+    "start": 1143,
+    "length": 189
+   },
+   {
+    "name": "S03_02_ハル.wav",
+    "start": 1339,
+    "length": 140
+   },
+   {
+    "name": "S04_01_ミナ先生.wav",
+    "start": 1503,
+    "length": 176
+   },
+   {
+    "name": "S04_02_ハル.wav",
+    "start": 1686,
+    "length": 141
+   },
+   {
+    "name": "S05_01_ミナ先生.wav",
+    "start": 1852,
+    "length": 191
+   },
+   {
+    "name": "S05_02_ミナ先生.wav",
+    "start": 2050,
+    "length": 248
+   },
+   {
+    "name": "S05_03_ハル.wav",
+    "start": 2306,
+    "length": 108
+   },
+   {
+    "name": "S06_01_ミナ先生.wav",
+    "start": 2439,
+    "length": 283
+   },
+   {
+    "name": "S06_02_ナレーション.wav",
+    "start": 2729,
+    "length": 195
+   },
+   {
+    "name": "S06_03_ハル.wav",
+    "start": 2932,
+    "length": 97
+   },
+   {
+    "name": "S07_01_ハル.wav",
+    "start": 3053,
+    "length": 149
+   },
+   {
+    "name": "S07_02_ミナ先生.wav",
+    "start": 3209,
+    "length": 224
+   },
+   {
+    "name": "S07_03_ハル.wav",
+    "start": 3441,
+    "length": 125
+   },
+   {
+    "name": "S08_01_ミナ先生.wav",
+    "start": 3591,
+    "length": 257
+   },
+   {
+    "name": "S08_02_ハル.wav",
+    "start": 3855,
+    "length": 77
+   },
+   {
+    "name": "S09_01_ミナ先生.wav",
+    "start": 3957,
+    "length": 191
+   },
+   {
+    "name": "S09_02_ミナ先生.wav",
+    "start": 4155,
+    "length": 193
+   },
+   {
+    "name": "S09_03_ハル.wav",
+    "start": 4356,
+    "length": 128
+   },
+   {
+    "name": "S10_01_ミナ先生.wav",
+    "start": 4508,
+    "length": 224
+   },
+   {
+    "name": "S10_02_ハル.wav",
+    "start": 4739,
+    "length": 134
+   },
+   {
+    "name": "S10_03_ミナ先生.wav",
+    "start": 4881,
+    "length": 257
+   },
+   {
+    "name": "S10_04_ハル.wav",
+    "start": 5146,
+    "length": 90
+   }
+  ],
+  "bgm": [
+   {
+    "start": 76,
+    "length": 318
+   },
+   {
+    "start": 395,
+    "length": 318
+   },
+   {
+    "start": 714,
+    "length": 318
+   },
+   {
+    "start": 1033,
+    "length": 318
+   },
+   {
+    "start": 1352,
+    "length": 318
+   },
+   {
+    "start": 1671,
+    "length": 318
+   },
+   {
+    "start": 1990,
+    "length": 318
+   },
+   {
+    "start": 2309,
+    "length": 318
+   },
+   {
+    "start": 2628,
+    "length": 318
+   },
+   {
+    "start": 2947,
+    "length": 318
+   },
+   {
+    "start": 3266,
+    "length": 318
+   },
+   {
+    "start": 3585,
+    "length": 318
+   },
+   {
+    "start": 3904,
+    "length": 318
+   },
+   {
+    "start": 4223,
+    "length": 318
+   },
+   {
+    "start": 4542,
+    "length": 318
+   },
+   {
+    "start": 4861,
+    "length": 318
+   },
+   {
+    "start": 5180,
+    "length": 70
+   }
+  ],
+  "totalFrames": 5428
+ }
+}

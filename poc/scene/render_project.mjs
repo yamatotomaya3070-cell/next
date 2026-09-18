@@ -14,8 +14,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = process.argv[2] || 'poc/scene/out/newnisa_project.json';
 const OUT = process.argv[3] || 'poc/scene/out/newnisa_video.mp4';
 const LIMIT = Number(process.argv[4] || process.env.SCENE_LIMIT || 0); // 0=全部
-// 左上の場面名ラベル。就労者用の完成見本では 0（支給素材だけで再現できる見本にするため）。
-const SECTION_LABEL = process.env.SCENE_SECTION_LABEL !== '0';
+// 左上の場面名ラベル。支給素材にも手順にも無いので、既定では描かない（就労者が再現できない見本になるため）。
+// 案件を作る worker もこの既定を使う。デモ用に出したいときだけ SCENE_SECTION_LABEL=1。
+const SECTION_LABEL = process.env.SCENE_SECTION_LABEL === '1';
 const FPS = 24, W = 1280, H = 720;
 const WORK = process.env.SCENE_WORK_DIR || 'poc/scene/out/work';
 const VOX = process.env.SCENE_VOX_DIR || 'poc/scene/out/vox';

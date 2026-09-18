@@ -273,3 +273,14 @@ tsc / vitest 100件 通過。
 - デプロイ: GitHub https://github.com/yamatotomaya3070-cell/next の main に push → Vercel の Git 連携で自動デプロイ（本番 Ready を確認）。ローカルのブランチ名も master → main に変更。
 - 注意: Vercel CLI で直接デプロイすると poc/ や scripts/output（約5.8GB）まで送ろうとして、無料プランのアップロード上限（24時間で5000ファイル）に当たった。.vercelignore を追加済み。今後は push でデプロイする。
 - 別セッションの AI レビュー機能（src/lib/review ほか）も、同じファイルに変更が入っていて切り離せなかったため一緒にコミット・公開した（既存の表だけ使用、DB 変更なし）。
+
+### 2026-09-18 午後 — 「どのPCでも・支給素材から完成できる」の保証（Claude）
+ユーザーの指摘: 書き出しプリセットはこのPCにしか無いのでは／これで本当に完成まで行けるのか。
+調べた結果、本番では完成できない状態だった（本番の素材ZIPは8月版で場面の映像・OP/EDが無く、型・スクリプト・プリセットを他PCへ届ける手段も無かった）。
+
+- 型・スクリプト・プリセット: 教科書 第10章からセットアップ用ZIP（public/guide/setup/kizuna_davinci_setup.zip）をダウンロード → bat。ZIPから展開した bat で導入できることを確認。プリセットが無いときの手動設定も教科書に記載。ZIP は scripts/scene/zipFolder.ts（UTF-8フラグ・/区切り）で作る。Compress-Archive(\区切り)・tar(Shift-JIS)は使わない。
+- 登録前の関門 scripts/scene/verifyPackage.ts: 「絆_素材を並べる」と同じ計算(src/lib/scene/arrangeSimulation.ts)で並びを予測し、完成見本の長さ(±3f)・作業指示一覧とセリフの1対1・声のピーク(-2dB以下)を確認。registerSceneTask の最初で呼ぶので、合わない案件は登録されない。予測は実機 Resolve 21 の結果と1フレームも違わないことをテストで保証（fixtures/arrange-nisa-2026-09-17.json）。Resolve の数え方: 音声=floor(秒×24)、映像=実フレーム数、置かれる長さは n−1。
+- 作業のしかた: 作業指示一覧を同じタブに表示／就労者が見られない完成見本に頼る文言を削除／自己チェックが編集指示書の表を読んでいた不具合を修正／YouTube動画生成以外の案件では自動で並べる手順を出さない。
+- 生成側: 案件ごとの手順書を作らない・見本に場面名を入れない(既定OFF)・素材ZIPを実在ファイルで作る・説明文と提出名を題材から作る・完成見本の取り違えの逃げ道を削除。
+- 本番データ: 新しい新NISA練習案件を関門つきで登録（56ec5dab-…）、同名の古い8/30版を削除。iDeCo は scene_jobs に残っていた設計図から新しい仕組みで作り直し中。8/16「新NISAって結局何？」は就労者の提出1件（レビュー待ち）があるため、削除は確認待ち。
+- 案件を作る入口は4つ（YouTube動画生成／課題の新規作成／scripts/video の worker／CrowdWorks案件）。保証できるのは YouTube動画生成だけ。

@@ -1,0 +1,21 @@
+{
+  "title": "アニメーション素材生成テスト",
+  "goal": "見本と同じ動きを動画素材として支給できることを確認する",
+  "scenes": [
+    {
+      "section": "example",
+      "visual": {
+        "type": "number_animation",
+        "description": "100万円から80万円への変化をアニメーションで表示する。",
+        "onScreenText": ["利益100万円", "手元に80万円"],
+        "infographic": {
+          "kind": "number_animation",
+          "from": 100,
+          "to": 80,
+          "unit": "万円"
+        }
+      },
+      "audio": []
+    }
+  ]
+}

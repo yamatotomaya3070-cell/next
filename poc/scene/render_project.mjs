@@ -14,9 +14,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = process.argv[2] || 'poc/scene/out/newnisa_project.json';
 const OUT = process.argv[3] || 'poc/scene/out/newnisa_video.mp4';
 const LIMIT = Number(process.argv[4] || process.env.SCENE_LIMIT || 0); // 0=全部
+// 左上の場面名ラベル。就労者用の完成見本では 0（支給素材だけで再現できる見本にするため）。
+const SECTION_LABEL = process.env.SCENE_SECTION_LABEL !== '0';
 const FPS = 24, W = 1280, H = 720;
-const WORK = 'poc/scene/out/work';
-const VOX = 'poc/scene/out/vox';
+const WORK = process.env.SCENE_WORK_DIR || 'poc/scene/out/work';
+const VOX = process.env.SCENE_VOX_DIR || 'poc/scene/out/vox';
 
 function loadKey() {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
@@ -75,6 +77,7 @@ async function main() {
   if (LIMIT > 0) scenes = scenes.slice(0, LIMIT);
   console.log(`レンダ対象: ${scenes.length}シーン / 声=${KEY ? 'Gemini TTS' : '無音'}`);
   rmSync(WORK, { recursive: true, force: true }); mkdirSync(WORK, { recursive: true });
+  mkdirSync(`${WORK}/visual_assets`, { recursive: true });
   mkdirSync(VOX, { recursive: true });
 
   // 固定オープニング/エンディング（「マネーの学校」）。あれば後段で前後に concat する。
@@ -128,16 +131,21 @@ async function main() {
 
     // 3) フレーム描画
     const isConv = scene.visual.type === 'character_conversation';
-    const builder = isConv ? convFrame(scene, sched) : (adaptBuilder(scene, D) || genericCard(scene));
+    const builder = isConv ? convFrame(scene, sched, { includeSection: SECTION_LABEL }) : (adaptBuilder(scene, D) || genericCard(scene));
+    const visualBuilder = isConv
+      ? convFrame(scene, sched, { includeOverlays: false })
+      : builder;
     const secJa = SECTION_JA[scene.section] || scene.section;
     const nF = Math.round(D * FPS);
     for (let i = 0; i < nF; i++) {
       const t = i / FPS;
+      const visualSvg = visualBuilder(t);
+      await sharp(Buffer.from(visualSvg)).png().toFile(`${WORK}/v_${tag}_${String(i).padStart(4, '0')}.png`);
       let svg = builder(t);
       if (!isConv) {
         // セクション見出し＋現在の発話の字幕を重ねる
         const active = sched.find((x) => t >= x.start && t < x.end) || (t < (sched[0]?.start ?? 0) ? null : sched[sched.length - 1]);
-        let frag = renderSection(secJa);
+        let frag = SECTION_LABEL ? renderSection(secJa) : '';
         if (active && active.line.text) frag += renderSubtitle(active.line.speaker, active.line.text, 1);
         svg = inject(svg, frag);
       }
@@ -147,9 +155,11 @@ async function main() {
     const clip = `clip_${tag}.mp4`;
     ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/f_${tag}_%04d.png`, '-i', sceneWav,
       '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', `${WORK}/${clip}`]);
+    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/v_${tag}_%04d.png`,
+      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-movflags', '+faststart', `${WORK}/visual_assets/visual_${tag}.mp4`]);
     clips.push(clip);
     // フレーム掃除（音声は残す=再開時キャッシュ）
-    spawnSync('bash', ['-c', `rm -f ${WORK}/f_${tag}_*.png ${WORK}/t_*.png`]);
+    spawnSync('bash', ['-c', `rm -f ${WORK}/f_${tag}_*.png ${WORK}/v_${tag}_*.png ${WORK}/t_*.png`]);
   }
 
   // 4) 本編を連結 → 本編にだけ body BGM を敷く（opening/ending は自前BGM内包＝二重掛け回避）

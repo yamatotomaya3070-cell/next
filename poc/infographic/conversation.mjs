@@ -46,7 +46,7 @@ function figure(id, cx, active, expr, localT) {
   return `${glow}<image href="${art.uri}" xlink:href="${art.uri}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" opacity="${op}" preserveAspectRatio="xMidYMax meet"/>`;
 }
 
-export function buildConversationSVG(scene, t) {
+export function buildConversationSVG(scene, t, { includeOverlays = true, includeSection = true } = {}) {
   const parts = [];
   parts.push(boardBG('cvbg'));
 
@@ -64,10 +64,12 @@ export function buildConversationSVG(scene, t) {
   parts.push(text(haruCx, 182, 'ハル', { anchor: 'middle', size: 22, weight: 700, fill: haruActive ? '#7FA8E8' : '#8792a0' }));
   parts.push(text(minaCx, 182, 'ミナ先生', { anchor: 'middle', size: 22, weight: 700, fill: !haruActive ? '#66C6A0' : '#8792a0' }));
 
-  if (scene.telop) parts.push(renderTelop(scene.telop.text, t, scene.telop.at));
-  parts.push(renderSection(scene.section));
-  const a = appear(localT, 0.15, 0.3);
-  parts.push(renderSubtitle(turn.speaker, turn.text, a.o));
+  if (includeOverlays) {
+    if (scene.telop) parts.push(renderTelop(scene.telop.text, t, scene.telop.at));
+    if (includeSection) parts.push(renderSection(scene.section));
+    const a = appear(localT, 0.15, 0.3);
+    parts.push(renderSubtitle(turn.speaker, turn.text, a.o));
+  }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
 }

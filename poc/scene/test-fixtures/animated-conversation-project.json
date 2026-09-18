@@ -1,0 +1,24 @@
+{
+  "title": "会話アニメーション素材生成テスト",
+  "goal": "人物の動きだけを動画素材として支給できることを確認する",
+  "scenes": [
+    {
+      "section": "dialogue",
+      "visual": {
+        "type": "character_conversation",
+        "description": "ハルとミナ先生が会話する。",
+        "onScreenText": ["見本用の強調テロップ"]
+      },
+      "audio": [
+        {
+          "speaker": "haru",
+          "text": "この字幕は映像素材には入れません。",
+          "emotion": "happy",
+          "deliveryStyle": "明るく",
+          "speakingRate": "normal",
+          "emphasis": []
+        }
+      ]
+    }
+  ]
+}

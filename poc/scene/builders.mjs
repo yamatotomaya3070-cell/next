@@ -142,10 +142,10 @@ export function genericCard(scene) {
 }
 
 // 会話用: audio[] を convScene.turns に
-export function convFrame(scene, sched) {
+export function convFrame(scene, sched, options) {
   const turns = sched.map((x) => ({ speaker: x.line.speaker, start: x.start, dur: x.end - x.start + 0.05, text: x.line.text, emotion: x.line.emotion }));
   const conv = { section: SECTION_JA[scene.section] || '会話', telop: (scene.visual.onScreenText || [])[0] ? { text: scene.visual.onScreenText[0], at: (turns[1]?.start ?? turns[0].start) + 0.3 } : null, turns };
-  return (t) => buildConversationSVG(conv, t);
+  return (t) => buildConversationSVG(conv, t, options);
 }
 
 // visual.type → 既存ビルダー＋データ変換。未対応型は null（呼び出し側で genericCard）。

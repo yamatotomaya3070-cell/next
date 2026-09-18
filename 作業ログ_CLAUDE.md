@@ -316,3 +316,18 @@ PC依存:
 - **メニュー統合**: TRAINEE_NAV から作業中/提出/修正依頼/実績を削除し「受注案件」のみ。サイドバーは `?status=` 付きでも受注案件をアクティブ表示。/works の絞り込みチップに状態ごとの件数を表示。
 - **検証**: vitest 129件（messages ヘルパー13件追加）、tsc、eslint（新規エラー0）。dev 限定 `/local-preview/messages`（`?as=staff`）で PC 幅・390px 幅とも目視確認、送信→吹き出し追加→最下部追従を確認。ログイン後の実ページは migration 未適用のため未確認（ユーザー側で 00020 適用後に /messages・/staff/messages・/works を確認してください）。
 - 未コミット・未デプロイ（指示待ち）。開発サーバーは既存の 3124 を利用。
+
+## 2026-09-18 夕方：ワーカーPCのセットアップを「教科書からダウンロード→bat 1つ」に（bdbb690、push 済み）
+
+背景: 案件を作る工程（YouTube動画生成）は、Vercel ではなく職員PCで常駐する「ワーカー」が処理する。ユーザーの開発機はノートPCで持ち運ぶため、クライアント側の常時起動PCにワーカーを置く必要があり、非技術者の職員でも入れられる形が要る。クリーン複製（git 管理下のファイルだけ）で試したところ、立ち絵14枚（poc/character/out/cutout/reel）が無く会話場面の描画モジュールの読み込みで即エラーになった。立ち絵を入れると13場面中12場面まで描画が進んだ（PCのメモリ不足でシステムに止められたため最後までは未確認）。
+
+やったこと:
+- scripts/worker-setup/: セットアップ（職員用）.bat → setup.ps1（winget で Git/Node.js LTS/ffmpeg 導入 → git clone/pull → npm install → 設定ファイル配置（隣の「設定ファイル.txt」を使う、無ければ3値を聞く）→ checkWorkerSetup → スタートアップとデスクトップにショートカット → 起動）。更新（職員用）.bat は同じスクリプト（動いているワーカーを窓の題名「絆ワーカー」で見つけて taskkill /T してから更新）。ps1 は UTF-8 BOM、bat は UTF-8 + chcp 65001 + CRLF
+- scripts/scene/checkWorkerSetup.ts: Node20+/ffmpeg/ffprobe/sharp/立ち絵14枚/assets/設定3項目/Supabase(scene_jobs)/Gemini(models 一覧) を ○× 表示。tsx はトップレベル await 不可なので main() に包む
+- scripts/scene/buildWorkerSetupZip.ts → public/guide/setup/kizuna_worker_setup.zip（5KB）。教科書 第11章「案件を作るパソコンの準備（職員の方へ）」からダウンロード
+- 立ち絵を git 追跡に（.gitignore を poc/**/out/* に変え、cutout/reel だけ再包含）。公開リポジトリなので clone だけで揃う
+- 検証: tsc/eslint/vitest 129 件通過。ZIP を展開した setup.ps1 をクリーン複製に対して実行（-NoStartup -NoStart）し、pull→npm install→設定維持→確認 全○→完了まで通った。ショートカット作成の COM も動作確認。winget による新規インストールと実際のスタートアップ登録は本機では未実施（ツールが入っているため）
+
+未対応（ユーザー判断待ち）:
+- クラウドワークス案件では「字幕を入れる」「強調テロップを入れる」の文が絆の型前提のまま。依頼主の指定に合わせて型の見た目を変える文と教科書の節が必要
+- 旧 iDeCo(72688600) の置換、はじめに.txt の文面、教科書6章テロップの「補足」文言、プリセットXMLの初期値（午後の確認で挙げた4点）

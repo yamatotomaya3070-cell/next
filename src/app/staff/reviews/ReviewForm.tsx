@@ -1,26 +1,34 @@
 "use client";
 
 import { useActionState } from "react";
-import { reviewFeedback } from "@/lib/actions/staff";
+import { submitReview } from "@/lib/actions/staff";
 import type { ActionState } from "@/lib/actions/assignments";
 
 interface ReviewFormProps {
-  feedbackId: string;
+  /** AI下書きが無い提出物では null（職員が自分で結果を書く） */
+  feedbackId: string | null;
+  submissionId: string;
   assignmentId: string;
   defaultScore: number;
   defaultSummary: string;
+  defaultImprovePoints: string[];
+  /** AIがすでに自動差し戻し済みの提出物か */
+  autoReturned: boolean;
 }
 
 const initialState: ActionState = { error: null };
 
 export function ReviewForm({
   feedbackId,
+  submissionId,
   assignmentId,
   defaultScore,
   defaultSummary,
+  defaultImprovePoints,
+  autoReturned,
 }: ReviewFormProps) {
   const [state, formAction, isPending] = useActionState(
-    reviewFeedback,
+    submitReview,
     initialState,
   );
 
@@ -30,7 +38,8 @@ export function ReviewForm({
 
   return (
     <form action={formAction} className="space-y-3">
-      <input type="hidden" name="feedback_id" value={feedbackId} />
+      {feedbackId && <input type="hidden" name="feedback_id" value={feedbackId} />}
+      <input type="hidden" name="submission_id" value={submissionId} />
       <input type="hidden" name="assignment_id" value={assignmentId} />
 
       <div className="flex flex-wrap items-end gap-3">
@@ -58,13 +67,17 @@ export function ReviewForm({
         </label>
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="mark_completed"
-          className="h-5 w-5 accent-success"
+      <label className="block">
+        <span className="text-sm font-bold text-ink-soft">
+          直してほしいこと（1行に1つ・差し戻すときは必須）
+        </span>
+        <textarea
+          name="improve_points"
+          rows={3}
+          defaultValue={defaultImprovePoints.join("\n")}
+          placeholder={"例: S3の字幕が1つ抜けています\n例: BGMの音量が大きすぎます"}
+          className="mt-1 block w-full rounded-xl border-2 border-line px-3 py-2"
         />
-        この案件を「完了」にする（十分な出来の場合）
       </label>
 
       {state.error && (
@@ -73,26 +86,43 @@ export function ReviewForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <button
           type="submit"
           name="decision"
-          value="approve"
+          value="complete"
           disabled={isPending}
           className="rounded-xl bg-success px-5 py-2 font-bold text-white transition hover:bg-success/90 disabled:opacity-50"
         >
-          承認して利用者に公開
+          合格にする（完了）
         </button>
         <button
           type="submit"
           name="decision"
-          value="reject"
+          value="revise"
           disabled={isPending}
-          className="rounded-xl border-2 border-line px-5 py-2 font-bold text-ink-soft transition hover:bg-page disabled:opacity-50"
+          className="rounded-xl bg-accent-purple px-5 py-2 font-bold text-white transition hover:bg-accent-purple/90 disabled:opacity-50"
         >
-          破棄する
+          {autoReturned
+            ? "この内容で差し戻しを確定する"
+            : "差し戻す（やり直しをお願いする）"}
         </button>
+        {feedbackId && (
+          <button
+            type="submit"
+            name="decision"
+            value="discard"
+            disabled={isPending}
+            className="rounded-xl border-2 border-line px-5 py-2 font-bold text-ink-soft transition hover:bg-page disabled:opacity-50"
+          >
+            AI下書きを破棄
+          </button>
+        )}
       </div>
+      <p className="text-xs text-ink-soft">
+        「合格」は案件を完了にします。「差し戻す」は利用者の画面に「やり直し」として表示され、
+        もう一度提出できるようになります。
+      </p>
     </form>
   );
 }

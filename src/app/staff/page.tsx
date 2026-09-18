@@ -35,6 +35,7 @@ import {
   type TraineeProgressRow,
 } from "./TraineeProgressTable";
 import { ExportReportButton, type ReportRow } from "./ExportReportButton";
+import { latestSubmissionPerAssignment } from "@/lib/review/reviewState";
 import { ASSIGNMENT_STATUS_LABELS } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,7 @@ interface FeedbackRow {
   score: number | null;
   improve_points: string[] | null;
   status: string;
+  reviewed_by?: string | null;
 }
 
 const STATUS_PROGRESS: Record<AssignmentStatus, number> = {
@@ -96,7 +98,6 @@ export default async function StaffDashboardPage() {
   const [
     { data: traineesData, error: traineesError },
     { data: assignmentsData, error: assignmentsError },
-    { count: pendingCount },
     { data: questionsData },
     { data: submissionsData },
     { data: approvedFbData },
@@ -115,10 +116,6 @@ export default async function StaffDashboardPage() {
       )
       .order("created_at", { ascending: false }),
     supabase
-      .from("feedback")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending_review"),
-    supabase
       .from("qa_logs")
       .select("*")
       .eq("needs_staff", true)
@@ -132,7 +129,7 @@ export default async function StaffDashboardPage() {
       .limit(300),
     supabase
       .from("feedback")
-      .select("submission_id, score, improve_points, status")
+      .select("submission_id, score, improve_points, status, reviewed_by")
       .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(300),
@@ -173,6 +170,15 @@ export default async function StaffDashboardPage() {
     const aid = submissionToAssignment.get(submissionId);
     return aid ? (assignmentById.get(aid)?.user_id ?? null) : null;
   };
+
+  // AIが自動で差し戻したまま職員が確認していない件数。
+  // 再提出された案件の古い提出は数えない（最新の提出だけが対応対象）。
+  const latestSubmissionIds = new Set(
+    latestSubmissionPerAssignment(submissions).map((s) => s.id),
+  );
+  const unconfirmedAutoReturnCount = approvedFb.filter(
+    (f) => f.reviewed_by == null && latestSubmissionIds.has(f.submission_id),
+  ).length;
 
   const latestProgress = new Map<string, number>();
   for (const log of logsData ?? []) {
@@ -261,14 +267,12 @@ export default async function StaffDashboardPage() {
     if (hasPending) {
       nextAction = { label: "レビューを承認", href: "/staff/reviews" };
     } else if (current?.status === "submitted") {
-      nextAction = {
-        label: "提出を確認",
-        href: current.tasks ? `/staff/tasks/${current.tasks.id}` : "/staff/reviews",
-      };
+      // 提出物の動画・AIレビュー・合格/差し戻しの操作はすべて提出レビュー画面にある
+      nextAction = { label: "提出を確認", href: "/staff/reviews" };
     } else if (current && isOverdue(current.due_at)) {
       nextAction = { label: "進捗を確認", href: `/staff/users/${t.id}` };
     } else if (current?.status === "feedback") {
-      nextAction = { label: "修正対応を確認", href: `/staff/users/${t.id}` };
+      nextAction = { label: "やり直し対応を確認", href: "/staff/reviews" };
     } else if (!current) {
       nextAction = { label: "次の案件を配布", href: "/staff/tasks" };
     } else {
@@ -519,8 +523,8 @@ export default async function StaffDashboardPage() {
         <MetricCard
           icon={<IconCheckSquare />}
           label="レビュー待ち"
-          value={`${submittedCount + (pendingCount ?? 0)}件`}
-          sub={`AI添削の承認待ち ${pendingCount ?? 0}件`}
+          value={`${submittedCount + (unconfirmedAutoReturnCount ?? 0)}件`}
+          sub={`AIが自動で差し戻し・職員未確認 ${unconfirmedAutoReturnCount ?? 0}件`}
           tone="danger"
         />
       </div>

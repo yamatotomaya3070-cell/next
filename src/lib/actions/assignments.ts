@@ -3,13 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile, createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { gradeSubmission } from "@/lib/ai";
-import type { ProgressEvent, SelfCheckItem, TaskMaterial } from "@/lib/types";
+import { createAiReview } from "@/lib/review/createAiReview";
+import { parseSelfCheck } from "@/lib/review/parseSelfCheck";
+import type { ProgressEvent } from "@/lib/types";
 
 export interface ActionState {
   error: string | null;
   success?: boolean;
 }
+
+/** 同じ案件を連続で提出できない間隔（連打と二重送信の防止） */
+const RESUBMIT_COOLDOWN_MS = 60 * 1000;
 
 /** 作業開始・休憩などの進捗イベントを記録 */
 export async function logProgress(
@@ -43,7 +47,7 @@ export async function logProgress(
   return { error: null, success: true };
 }
 
-/** 提出 + AI採点（結果は職員承認待ちとして保存） */
+/** 提出 + AIレビュー（明確なNGは自動で差し戻し、それ以外は職員承認待ちとして保存） */
 export async function submitWork(
   _prev: ActionState,
   formData: FormData,
@@ -57,31 +61,41 @@ export async function submitWork(
   const note = String(formData.get("note") ?? "").trim() || null;
   const workMinutes = Number(formData.get("work_minutes") ?? 0) || null;
 
-  let selfCheck: SelfCheckItem[] = [];
-  try {
-    selfCheck = JSON.parse(String(formData.get("self_check") ?? "[]"));
-  } catch {
-    selfCheck = [];
-  }
+  const selfCheck = parseSelfCheck(String(formData.get("self_check") ?? "[]"));
 
   if (!assignmentId) return { error: "提出先の課題が見つかりません。" };
   if (!filePath) return { error: "ファイルをアップロードしてください。" };
 
-  // 割当の所有確認 + 課題情報取得
+  // 割当の所有確認（課題名・依頼書は createAiReview 側で取得する）
   const { data: assignment, error: aErr } = await supabase
     .from("task_assignments")
-    .select("id, user_id, task_id, tasks(title, estimated_minutes)")
+    .select("id, user_id, task_id")
     .eq("id", assignmentId)
     .eq("user_id", profile.id)
     .single();
   if (aErr || !assignment) return { error: "課題が見つかりません。" };
 
-  // 提出バージョン
-  const { count } = await supabase
+  // 提出バージョン（件数ではなく最大versionから採る。過去の提出が消えても番号が衝突しない）
+  const { data: previous } = await supabase
     .from("submissions")
-    .select("id", { count: "exact", head: true })
-    .eq("assignment_id", assignmentId);
-  const version = (count ?? 0) + 1;
+    .select("version, submitted_at")
+    .eq("assignment_id", assignmentId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ version: number; submitted_at: string }>();
+  const version = (previous?.version ?? 0) + 1;
+
+  // 連打・二重送信の防止。1回の提出ごとにAI採点（外部API）が走るため、
+  // 短時間の再提出は受け付けない。
+  if (
+    previous &&
+    Date.now() - new Date(previous.submitted_at).getTime() < RESUBMIT_COOLDOWN_MS
+  ) {
+    return {
+      error:
+        "さきほど提出したばかりです。1分ほど待ってから、もう一度提出してください。",
+    };
+  }
 
   const { data: submission, error: sErr } = await supabase
     .from("submissions")
@@ -113,46 +127,8 @@ export async function submitWork(
     minutes_delta: workMinutes,
   });
 
-  // AI採点（失敗しても提出自体は成立させる）
-  try {
-    const task = assignment.tasks as unknown as {
-      title: string;
-      estimated_minutes: number | null;
-    };
-    const { data: requestDocRow } = await supabase
-      .from("task_materials")
-      .select("content")
-      .eq("task_id", assignment.task_id)
-      .eq("kind", "request_doc")
-      .limit(1)
-      .maybeSingle<Pick<TaskMaterial, "content">>();
-
-    const result = await gradeSubmission({
-      taskTitle: task.title,
-      requestDoc: requestDocRow?.content ?? "",
-      selfCheck,
-      note,
-      workMinutes,
-      estimatedMinutes: task.estimated_minutes,
-      isResubmission: version > 1,
-    });
-
-    await supabase.from("feedback").insert({
-      submission_id: submission.id,
-      source: "ai",
-      status: "pending_review",
-      score: result.score,
-      summary: result.summary,
-      good_points: result.goodPoints,
-      improve_points: result.improvePoints,
-      criteria: result.criteria,
-    });
-  } catch (err) {
-    console.error("AI採点に失敗しました（提出は完了しています）:", err);
-  }
-
   // 機械検品ジョブ登録（AI動画生成パイプラインの案件で正解データがある場合のみ。
-  // video_jobs未適用/該当なしなら何もしない。実処理は scripts/video/inspect-worker.ts が行う）
+  // 該当なしなら何もしない。実処理は scripts/video/inspect-worker.ts が行う）
   // video_jobs / submission_inspections は職員のみRLSのため、就労者セッションの
   // createClient() では読み書きできない。管理クライアントで最小限の範囲だけ操作する。
   try {
@@ -172,9 +148,24 @@ export async function submitWork(
         status: "pending",
       });
       if (insErr) throw insErr;
+    } else {
+      // SCENE系案件など、正解データが video_jobs に無い案件は見本との自動照合ができない。
+      // 職員が /staff/reviews で目視レビューする運用になるため、無言で飛ばさずに記録する。
+      console.info(
+        `[submit] 正解データ(video_jobs.answer_data)が無いため機械検品をスキップ: task=${assignment.task_id}`,
+      );
     }
   } catch (err) {
     console.error("機械検品ジョブの登録に失敗しました（提出は完了しています）:", err);
+  }
+
+  // AIレビュー下書きの作成＋明確なNGの自動差し戻し。
+  // 失敗しても提出自体は成立させる（提出物は /staff/reviews に
+  // 「AIレビュー未実施」として必ず並び、職員が手動で再実行できる）。
+  try {
+    await createAiReview(submission.id, { expectAssignmentId: assignmentId });
+  } catch (err) {
+    console.error("AIレビューの作成に失敗しました（提出は完了しています）:", err);
   }
 
   revalidatePath(`/tasks/${assignmentId}`);

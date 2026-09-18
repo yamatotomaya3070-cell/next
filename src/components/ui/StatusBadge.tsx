@@ -63,7 +63,7 @@ export const ASSIGNMENT_BADGES: Record<
   not_started: { label: "未着手", tone: "neutral" },
   in_progress: { label: "作業中", tone: "info" },
   submitted: { label: "レビュー待ち", tone: "warning" },
-  feedback: { label: "レビュー結果あり", tone: "purple" },
+  feedback: { label: "やり直し依頼中", tone: "purple" },
   completed: { label: "完了", tone: "success" },
 };
 

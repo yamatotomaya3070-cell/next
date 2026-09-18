@@ -47,7 +47,11 @@ next-env.d.ts
 /scripts/output/
 
 # 生成物（動画・音声・素材パッケージ・キャラ画像などの大容量出力）
-poc/**/out/
+poc/**/out/*
+# 立ち絵（会話場面の描画に必須。ワーカーPCでも要るので追跡する）
+!poc/character/out/cutout/
+poc/character/out/cutout/*
+!poc/character/out/cutout/reel/
 
 # 就労者へ配る素材パッケージ（数十MB。Git では管理せず、配布物として別途渡す）
 /テスト用_動画編集パッケージ/

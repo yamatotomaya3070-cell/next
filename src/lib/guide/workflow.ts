@@ -83,12 +83,23 @@ export interface WorkStepView extends WorkStep {
 }
 
 // 「YouTube動画生成」以外で作った案件（CrowdWorks の実案件など）は、素材のファイル名が
-// ［絆_素材を並べる］の決まりに合わないので、自分で並べる手順に差し替える。
+// ［絆_素材を並べる］の決まりに合わず、字幕やテロップの見た目も絆の型ではなく依頼主の指定に
+// 合わせる必要があるので、並べる・字幕・テロップ・書き出しの4つを差し替える。
 const MANUAL_ARRANGE: Record<string, Pick<WorkStep, "detail" | "guide">> = {
   arrange: {
     detail:
       "この案件は自動で並べられません。依頼内容と作業指示を見ながら、音声と映像をタイムラインに順番どおり並べます。",
     guide: "arrange#manual-voices",
+  },
+  subtitles: {
+    detail:
+      "依頼内容で指定された見た目（フォント・大きさ・色・位置）に合わせて、［エフェクト］→［タイトル］→［テキスト］を置き、インスペクタで見た目を変えます。1つ作ったらコピーして使い回し、文字は依頼書や台本から入れます。",
+    guide: "subtitles#custom",
+  },
+  telop: {
+    detail:
+      "依頼内容にテロップの指定がある場面だけ、［テキスト］を置いて指定どおりの見た目にします。指定が無ければ入れません。",
+    guide: "telop#custom",
   },
   export: {
     detail:

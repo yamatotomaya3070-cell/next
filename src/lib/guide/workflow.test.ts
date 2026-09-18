@@ -21,6 +21,17 @@ describe("getWorkSteps", () => {
     expect(step(steps, "export").detail).not.toContain("絆_YouTube_720p");
   });
 
+  it("それ以外の案件では、字幕とテロップは絆の型ではなく依頼主の指定に合わせる手順になる", () => {
+    const steps = getWorkSteps("/guide", { autoArrange: false });
+    for (const id of ["subtitles", "telop"]) {
+      expect(step(steps, id).detail).not.toContain("絆");
+      expect(step(steps, id).detail).not.toContain("作業指示一覧");
+      expect(step(steps, id).detail).toContain("依頼");
+    }
+    expect(step(steps, "subtitles").href).toBe("/guide/subtitles#custom");
+    expect(step(steps, "telop").href).toBe("/guide/telop#custom");
+  });
+
   it("すべてのステップの教科書リンクが、実在する章と節を指している", () => {
     for (const autoArrange of [true, false]) {
       for (const s of getWorkSteps("/guide", { autoArrange })) {

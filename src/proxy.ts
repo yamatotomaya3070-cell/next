@@ -4,7 +4,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // /api/cron はセッションを持たない Vercel Cron から叩かれる。
 // ルート側で CRON_SECRET を検証するため、ここでの /login リダイレクト対象から除外する。
-const PUBLIC_PATHS = ["/login", "/setup", "/api/cron"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/setup",
+  "/api/cron",
+  ...(process.env.NODE_ENV === "development" ? ["/local-preview"] : []),
+];
 
 export default async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,6 +60,7 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // 画像と教科書の操作動画(public/guide/video)は公開の静的ファイルなので認証を通さない
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)",
   ],
 };

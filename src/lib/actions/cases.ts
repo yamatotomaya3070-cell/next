@@ -148,15 +148,6 @@ export async function saveSimilarCase(
       generated_by: "ai",
       is_approved: false,
     },
-    {
-      task_id: task.id,
-      kind: "manual",
-      title: "作業のやり方（手順書）",
-      steps: generated.manualSteps,
-      sort_order: 1,
-      generated_by: "ai",
-      is_approved: false,
-    },
     ...(generated.script
       ? [
           {
@@ -341,15 +332,6 @@ export async function distributeRealCase(
       title: "お仕事の依頼書",
       content: guide.readableRequestDoc,
       sort_order: 0,
-      generated_by: "ai",
-      is_approved: true,
-    },
-    {
-      task_id: task.id,
-      kind: "manual",
-      title: "作業のやり方（手順書）",
-      steps: guide.manualSteps,
-      sort_order: 1,
       generated_by: "ai",
       is_approved: true,
     },

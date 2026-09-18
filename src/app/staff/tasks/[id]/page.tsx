@@ -15,7 +15,6 @@ import {
   IconVideo,
 } from "@/components/ui/icons";
 import { AssignForm } from "./AssignForm";
-import { ManualStepsEditor } from "./ManualStepsEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -286,15 +285,7 @@ export default async function StaffTaskDetailPage({
                     {material.content}
                   </pre>
                 )}
-                {material.kind === "manual" ? (
-                  <ManualStepsEditor
-                    taskId={id}
-                    materialId={material.id}
-                    initialSteps={material.steps ?? []}
-                    skillTags={task.skill_tags}
-                  />
-                ) : (
-                  material.steps && (
+                {material.steps && (
                     <ol className="mt-3 max-h-64 list-decimal space-y-1.5 overflow-auto rounded-xl bg-page p-4 pl-8 text-sm leading-relaxed text-ink">
                       {material.steps.map((step, i) => (
                         <li key={i}>
@@ -306,8 +297,7 @@ export default async function StaffTaskDetailPage({
                           )}
                         </li>
                       ))}
-                    </ol>
-                  )
+                  </ol>
                 )}
               </div>
             ))}

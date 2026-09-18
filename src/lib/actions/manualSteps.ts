@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireRole, createClient } from "@/lib/supabase/server";
-import type { ManualGuideline, ManualStep } from "@/lib/types";
+import type { ManualGuideline } from "@/lib/types";
 import type { ActionState } from "./assignments";
 
 /**
@@ -52,39 +52,6 @@ export async function buildManualGuidelinesContext(
   }
 }
 
-/** 既存案件の手順書(steps)を書き換える。task_materials を直接更新し、即反映する。 */
-export async function updateManualSteps(
-  taskId: string,
-  materialId: string,
-  steps: ManualStep[],
-): Promise<ActionState> {
-  await requireRole("staff", "admin");
-  const supabase = await createClient();
-
-  // 入力の正規化: 空テキストのステップは除外し、text/tip のみ残す
-  const cleaned: ManualStep[] = (Array.isArray(steps) ? steps : [])
-    .map((s) => ({
-      text: String(s?.text ?? "").trim(),
-      tip: s?.tip ? String(s.tip).trim() || null : null,
-    }))
-    .filter((s) => s.text.length > 0);
-
-  if (cleaned.length === 0) {
-    return { error: "手順を1つ以上入力してください。" };
-  }
-
-  const { error } = await supabase
-    .from("task_materials")
-    .update({ steps: cleaned })
-    .eq("id", materialId)
-    .eq("task_id", taskId)
-    .eq("kind", "manual");
-  if (error) return { error: "手順の保存に失敗しました。" };
-
-  revalidatePath(`/staff/tasks/${taskId}`);
-  revalidatePath("/staff/guidelines");
-  return { error: null, success: true };
-}
 
 /**
  * 手順の修正を「学習ルール」として登録する（なぜ直したか＝reason 必須）。

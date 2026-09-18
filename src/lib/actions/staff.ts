@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import { generateTask } from "@/lib/ai";
+import { createAiReview } from "@/lib/review/createAiReview";
 import type { AptitudeKey } from "@/lib/types";
 import type { ActionState } from "./assignments";
 import { buildManualGuidelinesContext } from "./manualSteps";
@@ -108,15 +109,6 @@ export async function createTaskWithAi(
       generated_by: "ai",
       is_approved: false,
     },
-    {
-      task_id: task.id,
-      kind: "manual",
-      title: "作業のやり方（手順書）",
-      steps: generated.manualSteps,
-      sort_order: 1,
-      generated_by: "ai",
-      is_approved: false,
-    },
     ...(generated.script
       ? [
           {
@@ -215,42 +207,126 @@ export async function assignTask(
 }
 
 /** AIフィードバックを承認/編集して利用者に公開 */
-export async function reviewFeedback(
+export type ReviewDecision = "complete" | "revise" | "discard";
+
+const REVIEW_DECISIONS: ReviewDecision[] = ["complete", "revise", "discard"];
+
+/**
+ * 提出物のレビューを確定する。
+ * - complete: 合格。利用者に公開して案件を完了にする
+ * - revise  : 差し戻し。利用者に公開して「やり直して再提出」の状態にする
+ * - discard : AI下書きを破棄。提出物は未レビューとして /staff/reviews に残る
+ *
+ * AI下書きが無い提出物（feedback_id なし）でも、職員が自分で結果を書いて
+ * 確定できる。これが無いと、AIレビューが作られなかった提出物が詰む。
+ */
+export async function submitReview(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const staff = await requireRole("staff", "admin");
   const supabase = await createClient();
 
-  const feedbackId = String(formData.get("feedback_id") ?? "");
+  const feedbackId = String(formData.get("feedback_id") ?? "") || null;
+  const submissionId = String(formData.get("submission_id") ?? "") || null;
   const assignmentId = String(formData.get("assignment_id") ?? "");
-  const decision = String(formData.get("decision") ?? "approve");
+  const decision = String(formData.get("decision") ?? "") as ReviewDecision;
   const summary = String(formData.get("summary") ?? "").trim();
   const score = Number(formData.get("score") ?? 0);
-  const markCompleted = formData.get("mark_completed") === "on";
+  const improvePoints = String(formData.get("improve_points") ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  if (!feedbackId) return { error: "対象が見つかりません。" };
+  if (!REVIEW_DECISIONS.includes(decision)) {
+    return { error: "操作を選んでください。" };
+  }
+  if (decision === "revise" && improvePoints.length === 0) {
+    return { error: "差し戻すときは、直してほしいことを1つ以上書いてください。" };
+  }
 
-  const { error } = await supabase
-    .from("feedback")
-    .update({
-      status: decision === "approve" ? "approved" : "rejected",
-      summary: summary || undefined,
-      score: Number.isFinite(score) && score > 0 ? score : undefined,
-      reviewed_by: staff.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", feedbackId);
-  if (error) return { error: "更新に失敗しました。" };
+  if (decision === "discard") {
+    if (!feedbackId) return { error: "破棄する下書きがありません。" };
+    const { error } = await supabase
+      .from("feedback")
+      .update({
+        status: "rejected",
+        reviewed_by: staff.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", feedbackId);
+    if (error) return { error: "更新に失敗しました。" };
+    revalidatePath("/staff/reviews");
+    revalidatePath("/staff");
+    return { error: null, success: true };
+  }
 
-  if (decision === "approve" && assignmentId) {
-    await supabase
+  // score は 0-100 の CHECK 制約付き。範囲外は保存せず null にする
+  const validScore =
+    Number.isFinite(score) && score > 0 && score <= 100 ? Math.round(score) : null;
+  const reviewed = {
+    status: "approved" as const,
+    summary: summary || null,
+    score: validScore,
+    improve_points: improvePoints,
+    reviewed_by: staff.id,
+    reviewed_at: new Date().toISOString(),
+  };
+
+  if (feedbackId) {
+    const { error } = await supabase
+      .from("feedback")
+      .update(reviewed)
+      .eq("id", feedbackId);
+    if (error) return { error: "更新に失敗しました。" };
+  } else {
+    if (!submissionId) return { error: "対象が見つかりません。" };
+    const { error } = await supabase.from("feedback").insert({
+      ...reviewed,
+      submission_id: submissionId,
+      source: "staff",
+    });
+    if (error) return { error: "保存に失敗しました。" };
+  }
+
+  if (assignmentId) {
+    const completed = decision === "complete";
+    const { error: asgErr } = await supabase
       .from("task_assignments")
       .update({
-        status: markCompleted ? "completed" : "feedback",
-        ...(markCompleted ? { completed_at: new Date().toISOString() } : {}),
+        status: completed ? "completed" : "feedback",
+        ...(completed ? { completed_at: new Date().toISOString() } : {}),
       })
       .eq("id", assignmentId);
+    if (asgErr) return { error: "案件の状態を更新できませんでした。" };
+  }
+
+  revalidatePath("/staff/reviews");
+  revalidatePath("/staff");
+  return { error: null, success: true };
+}
+
+/**
+ * 提出物に対してAIレビューを実行（または再実行）する。
+ * 提出時にAIレビューが作られなかった提出物を、職員が手動で立ち上げ直すための導線。
+ */
+export async function runAiReview(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireRole("staff", "admin");
+
+  const submissionId = String(formData.get("submission_id") ?? "");
+  if (!submissionId) return { error: "対象が見つかりません。" };
+
+  try {
+    await createAiReview(submissionId);
+  } catch (err) {
+    console.error("AIレビューの手動実行に失敗しました:", err);
+    return {
+      error:
+        "AIレビューを実行できませんでした。時間をおいて、もう一度試してください。",
+    };
   }
 
   revalidatePath("/staff/reviews");

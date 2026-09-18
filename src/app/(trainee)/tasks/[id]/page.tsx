@@ -11,7 +11,6 @@ import type {
 import { Furigana } from "@/components/Furigana";
 import { MarkdownLite } from "@/components/MarkdownLite";
 import { ReadAloudButton } from "@/components/ReadAloudButton";
-import { StepViewer } from "@/components/StepViewer";
 import { WorkTimer } from "@/components/WorkTimer";
 import { SubmitForm } from "@/components/SubmitForm";
 import { QuestionForm } from "@/components/QuestionForm";
@@ -31,6 +30,8 @@ import {
 } from "@/components/ui/icons";
 import { formatDue } from "@/components/work/AssignmentCard";
 import { FeedbackView } from "./FeedbackView";
+import { WorkSteps } from "@/components/work/WorkSteps";
+import { getWorkSteps } from "@/lib/guide/workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -112,8 +113,13 @@ export default async function TaskDetailPage({
     feedbacks = (fbData ?? []) as Feedback[];
   }
 
+  // 最新の提出（submissions は version の降順）に結果がまだ無ければ「採点中」を出す
+  const latestSubmissionId = submissions[0]?.id ?? null;
+  const awaitingResult =
+    latestSubmissionId !== null &&
+    !feedbacks.some((f) => f.submission_id === latestSubmissionId);
+
   const requestDoc = materials.find((m) => m.kind === "request_doc");
-  const manual = materials.find((m) => m.kind === "manual");
   const script = materials.find((m) => m.kind === "script");
   const checkList = materials.find((m) => m.kind === "revision_note");
   // 完成見本(kind='sample')は「答え」なので利用者には見せない（スタッフ専用）。
@@ -202,13 +208,13 @@ export default async function TaskDetailPage({
     },
     {
       id: "manual",
-      label: "作業手順",
+      label: "作業のしかた",
       icon: "🧭",
       content: (
         <div className="space-y-5">
-          <StepViewer
-            steps={manual?.steps ?? []}
-            stepModeEnabled={profile.step_mode_enabled}
+          <WorkSteps
+            steps={getWorkSteps("/guide")}
+            assignmentId={assignment.id}
             readAloudEnabled={profile.read_aloud_enabled}
           />
           {script?.content && (
@@ -252,6 +258,8 @@ export default async function TaskDetailPage({
           <FeedbackView
             feedbacks={feedbacks}
             hasSubmission={submissions.length > 0}
+            assignmentStatus={assignment.status}
+            awaitingResult={awaitingResult}
           />
           <SectionCard title="質問する">
             <QuestionForm assignmentId={assignment.id} />
@@ -326,7 +334,9 @@ export default async function TaskDetailPage({
           initialTab={
             assignment.status === "feedback" || feedbacks.length > 0
               ? "result"
-              : "request"
+              : assignment.status === "in_progress"
+                ? "manual" // 作業中の人は、毎回タブを押し直さずに続きから始められる
+                : "request"
           }
         />
       </div>

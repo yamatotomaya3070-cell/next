@@ -32,24 +32,9 @@ import { formatDue } from "@/components/work/AssignmentCard";
 import { FeedbackView } from "./FeedbackView";
 import { WorkSteps } from "@/components/work/WorkSteps";
 import { getWorkSteps } from "@/lib/guide/workflow";
+import { pickChecklistItems, pickInstructionSheet } from "@/lib/tasks/pickMaterials";
 
 export const dynamic = "force-dynamic";
-
-function parseSelfCheckItems(material: TaskMaterial | undefined): string[] {
-  if (!material?.content) {
-    return [
-      "依頼書のとおりに作業した",
-      "最初から最後まで見直した",
-      "指定されたファイル形式で書き出した",
-    ];
-  }
-  try {
-    const parsed = JSON.parse(material.content);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return material.content.split("\n").filter(Boolean);
-  }
-}
 
 export default async function TaskDetailPage({
   params,
@@ -121,7 +106,12 @@ export default async function TaskDetailPage({
 
   const requestDoc = materials.find((m) => m.kind === "request_doc");
   const script = materials.find((m) => m.kind === "script");
-  const checkList = materials.find((m) => m.kind === "revision_note");
+  const instructionSheet = pickInstructionSheet(materials);
+  // 「YouTube動画生成」で作った案件の素材だけが［絆_素材を並べる］の決まりに合う
+  // （登録前に scripts/scene/verifyPackage.ts で、見本どおりに並ぶことを確かめてある）
+  const autoArrange = materials.some(
+    (m) => m.kind === "source_assets" && m.media_url?.startsWith("scene-nisa/"),
+  );
   // 完成見本(kind='sample')は「答え」なので利用者には見せない（スタッフ専用）。
   // 利用者には支給素材(source_assets)のみ配布する。
   const downloadable = materials.filter(
@@ -137,7 +127,7 @@ export default async function TaskDetailPage({
     }),
   );
   const samples = signedDownloads.filter((d) => d.url);
-  const selfCheckItems = parseSelfCheckItems(checkList);
+  const selfCheckItems = pickChecklistItems(materials);
 
   const tabs: TaskTab[] = [
     {
@@ -213,10 +203,29 @@ export default async function TaskDetailPage({
       content: (
         <div className="space-y-5">
           <WorkSteps
-            steps={getWorkSteps("/guide")}
+            steps={getWorkSteps("/guide", { autoArrange })}
             assignmentId={assignment.id}
             readAloudEnabled={profile.read_aloud_enabled}
           />
+          {instructionSheet?.content && (
+            <SectionCard title="作業指示一覧">
+              <p className="text-[15px] leading-relaxed text-ink-soft">
+                字幕に入れる文字と、強調テロップを入れる場面が書いてあります。字幕は、ここから文をコピーして貼ります。
+              </p>
+              <details className="group mt-3" id="instruction-sheet">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border-2 border-primary/30 bg-primary-soft/40 px-4 text-[15px] font-bold text-primary transition hover:bg-primary-soft">
+                  <span className="group-open:hidden">作業指示一覧をひらく</span>
+                  <span className="hidden group-open:inline">作業指示一覧をとじる</span>
+                </summary>
+                <div className="mt-3 overflow-x-auto">
+                  <MarkdownLite
+                    text={instructionSheet.content}
+                    omitLeadingHeading={instructionSheet.title}
+                  />
+                </div>
+              </details>
+            </SectionCard>
+          )}
           {script?.content && (
             <SectionCard title={script.title}>
               <p className="whitespace-pre-wrap rounded-xl bg-accent-purple-soft/50 p-4 text-[16px] leading-loose text-ink">

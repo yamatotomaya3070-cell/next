@@ -35,21 +35,21 @@ export const WORK_STEPS: WorkStep[] = [
     id: "arrange",
     title: "素材を並べる",
     detail:
-      "［ワークスペース］→［スクリプト］→［絆_素材を並べる］を押すと、映像・セリフ・BGM が完成見本と同じ間隔で並びます。",
+      "［ワークスペース］→［スクリプト］→［絆_素材を並べる］を押すと、映像・セリフ・BGM が決まった間隔で並びます。メニューに無いときは職員の方に声をかけてください。",
     guide: "arrange#auto",
   },
   {
     id: "subtitles",
     title: "字幕を入れる",
     detail:
-      "セリフ1本につき字幕を1つ。話す人の型を置き、長さを音声に合わせ、文字は「依頼内容」タブの作業指示一覧からコピーします。",
+      "セリフ1本につき字幕を1つ。話す人の型を置き、長さを音声に合わせ、文字はこの画面の下の「作業指示一覧」からコピーします。",
     guide: "subtitles#place",
   },
   {
     id: "telop",
     title: "強調テロップを入れる",
     detail:
-      "作業指示一覧の「強調テロップ」に文字が書いてある場面だけ入れます。空いている場面には入れません。",
+      "作業指示一覧の「強調テロップ」の欄に文字がある行だけ、そのセリフの頭から場面の終わりまで入れます。",
     guide: "telop#place",
   },
   {
@@ -69,7 +69,7 @@ export const WORK_STEPS: WorkStep[] = [
     id: "submit",
     title: "見直して提出する",
     detail:
-      "書き出した動画を最初から最後まで見て、完成見本と見くらべてから「提出」タブで送ります。",
+      "書き出した動画を最初から最後まで見て、作業指示一覧とくらべてから「提出」タブで送ります。",
     guide: null,
   },
 ];
@@ -82,9 +82,35 @@ export interface WorkStepView extends WorkStep {
   video: { src: string; poster?: string } | null;
 }
 
+// 「YouTube動画生成」以外で作った案件（CrowdWorks の実案件など）は、素材のファイル名が
+// ［絆_素材を並べる］の決まりに合わないので、自分で並べる手順に差し替える。
+const MANUAL_ARRANGE: Record<string, Pick<WorkStep, "detail" | "guide">> = {
+  arrange: {
+    detail:
+      "この案件は自動で並べられません。依頼内容と作業指示を見ながら、音声と映像をタイムラインに順番どおり並べます。",
+    guide: "arrange#manual-voices",
+  },
+  export: {
+    detail:
+      "依頼内容に書いてある形式（大きさ・フレームレート・ファイル名）で MP4 ファイルにします。",
+    guide: "export#preset",
+  },
+};
+
+export interface WorkStepsOptions {
+  /** 絆の支給素材（YouTube動画生成で作った案件）なら true。［絆_素材を並べる］が使える */
+  autoArrange: boolean;
+}
+
 /** 作業の流れに、教科書の章（動画とリンク）を結びつけて返す */
-export function getWorkSteps(basePath = "/guide"): WorkStepView[] {
-  return WORK_STEPS.map((step) => {
+export function getWorkSteps(
+  basePath = "/guide",
+  { autoArrange }: WorkStepsOptions = { autoArrange: true },
+): WorkStepView[] {
+  const steps = autoArrange
+    ? WORK_STEPS
+    : WORK_STEPS.map((s) => ({ ...s, ...(MANUAL_ARRANGE[s.id] ?? {}) }));
+  return steps.map((step) => {
     const [slug, section] = (step.guide ?? "").split("#");
     const chapter = GUIDE_CHAPTERS.find((c) => c.slug === slug) ?? null;
     const hasSection = Boolean(

@@ -8,6 +8,9 @@ const DIR = process.argv[2] || 'poc/scene/out/就労者パッケージ_新NISA';
 const M = JSON.parse(readFileSync(`${DIR}/素材一覧.json`, 'utf8'));
 const SECTION_JA = { hook: '導入', problem: '問題提起', basics: '基礎説明', example: '具体例', dialogue: '疑問と誤解', caution: '注意点', summary: 'まとめ', cta: 'はじめ方' };
 const totalMin = (M.totalSec / 60).toFixed(1);
+// 提出ファイル名は英字にする（日本語名は提出時に文字化けしやすい）。題材によらず同じ決まり。
+const fileName = 'video_名前.mp4';
+const topic = M.theme || M.title;
 
 // --- 依頼書（request_doc） ---
 const requestDoc = `## お仕事の依頼書
@@ -19,7 +22,7 @@ const requestDoc = `## お仕事の依頼書
 - ジャンル: 横型（16:9）のYouTube解説動画（ハル・ミナ先生が会話で解説します）
 - 長さ: 約${totalMin}分
 - 仕様: ${M.spec.width}×${M.spec.height} / ${M.spec.fps}fps / ${M.spec.format}
-- ファイル名: 「nisa_名前.mp4」
+- ファイル名: 「${fileName}」
 
 ### 使う道具
 - DaVinci Resolve（無料版）を使います。
@@ -72,7 +75,7 @@ const checklist = [
 const payload = {
   task: {
     title: M.title,
-    summary: '新NISAの非課税の仕組みを、ハル・ミナ先生の会話でやさしく解説する横型のYouTube解説動画です。支給素材を使い、「作業のしかた」のとおりに動画に仕上げます。',
+    summary: `「${topic}」を、ハル・ミナ先生の会話でやさしく解説する横型のYouTube解説動画です。支給素材を使い、「作業のしかた」のとおりに動画に仕上げます。`,
     difficulty: 3,
     skill_tags: ['cut', 'telop', 'bgm', 'figure', 'duration', 'export'],
     estimated_minutes: 90,

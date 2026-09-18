@@ -55,7 +55,7 @@ async function main() {
   rmSync(OUTDIR, { recursive: true, force: true });
   for (const d of ['素材/映像', '素材/図解', '素材/立ち絵', '素材/音声', '素材/BGM', '素材/背景']) mkdirSync(`${OUTDIR}/${d}`, { recursive: true });
 
-  const manifest = { title: project.title, spec: { width: W, height: H, fps: 24, format: 'mp4 (H.264)' }, titleIntroSec: TITLE_INTRO, scenes: [], assets: {} };
+  const manifest = { title: project.title, theme: project.theme ?? "", goal: project.goal ?? "", spec: { width: W, height: H, fps: 24, format: 'mp4 (H.264)' }, titleIntroSec: TITLE_INTRO, scenes: [], assets: {} };
   const csv = [['シーン', 'セクション', '演者', 'セリフ', '映像タイプ', '図解・映像素材名', '音声素材名', '立ち絵素材名', '強調テロップ', '空ける間(フレーム)', '補足'].map(csvCell).join(',')];
 
   let absStart = TITLE_INTRO;
@@ -135,8 +135,9 @@ async function main() {
   if (existsSync(OPENING_SRC)) { copyFileSync(OPENING_SRC, `${OUTDIR}/素材/映像/オープニング.mp4`); manifest.assets.opening = '素材/映像/オープニング.mp4'; }
   if (existsSync(ENDING_SRC)) { copyFileSync(ENDING_SRC, `${OUTDIR}/素材/映像/エンディング.mp4`); manifest.assets.ending = '素材/映像/エンディング.mp4'; }
 
-  // 5) 完成見本をコピー（SAMPLE_VIDEO env 優先→納品フォルダ→最新 newnisa_video*）
-  const sample = [process.env.SAMPLE_VIDEO, 'poc/scene/out/納品_新NISA/完成見本.mp4', 'poc/scene/out/newnisa_video7.mp4', 'poc/scene/out/newnisa_video6.mp4']
+  // 5) 完成見本をコピー
+  // 完成見本は、この案件用に書き出したものだけを使う（別の動画を取り違えないよう、よその候補は探さない）
+  const sample = [process.env.SAMPLE_VIDEO]
     .filter(Boolean).find((p) => existsSync(p));
   if (sample) { copyFileSync(sample, `${OUTDIR}/完成見本.mp4`); manifest.assets.sample = '完成見本.mp4'; manifest.sampleDurationSec = +probe(sample).toFixed(1); }
 

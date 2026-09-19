@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TaskMaterial } from "@/lib/types";
-import { pickChecklistItems, pickInstructionSheet } from "./pickMaterials";
+import {
+  pickChecklistItems,
+  pickDownloadableMaterials,
+  pickInstructionSheet,
+} from "./pickMaterials";
 
 function material(partial: Partial<TaskMaterial>): TaskMaterial {
   return {
@@ -63,5 +67,56 @@ describe("pickInstructionSheet", () => {
 
   it("指示書が無ければ null", () => {
     expect(pickInstructionSheet([checklist])).toBeNull();
+  });
+});
+
+describe("pickDownloadableMaterials", () => {
+  const assets = material({
+    id: "assets",
+    kind: "source_assets",
+    title: "支給素材一式",
+    media_url: "scene-nisa/assets.zip",
+  });
+  const sampleOpen = material({
+    id: "sample-open",
+    kind: "sample",
+    title: "完成見本",
+    media_url: "scene-nisa/sample.mp4",
+    visible_before_submission: true,
+  });
+  const sampleStaffOnly = material({
+    ...sampleOpen,
+    id: "sample-staff",
+    visible_before_submission: false,
+  });
+
+  it("支給素材は提出の有無に関係なく常に配布する", () => {
+    expect(pickDownloadableMaterials([assets], false)).toEqual([assets]);
+    expect(pickDownloadableMaterials([assets], true)).toEqual([assets]);
+  });
+
+  it("「提出前から公開」の完成見本は提出前でも見せる", () => {
+    expect(pickDownloadableMaterials([sampleOpen, assets], false)).toEqual([
+      sampleOpen,
+      assets,
+    ]);
+  });
+
+  it("「職員のみ」の完成見本は提出前は見せず、提出後に公開する", () => {
+    expect(pickDownloadableMaterials([sampleStaffOnly, assets], false)).toEqual(
+      [assets],
+    );
+    expect(pickDownloadableMaterials([sampleStaffOnly, assets], true)).toEqual([
+      sampleStaffOnly,
+      assets,
+    ]);
+  });
+
+  it("ファイルの無い教材や、それ以外の種類は配布リストに入れない", () => {
+    const noFile = material({ id: "nofile", kind: "sample", media_url: null });
+    const doc = material({ id: "doc", kind: "request_doc", media_url: "x.pdf" });
+    expect(pickDownloadableMaterials([noFile, doc, assets], true)).toEqual([
+      assets,
+    ]);
   });
 });

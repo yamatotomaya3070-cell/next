@@ -372,3 +372,10 @@ PC依存:
 - 旧 task 757a4a2b（S12 無音1行）と Storage を削除し、scene_jobs 0837b376 を pending に戻して修正版ワーカーで再生成 → task=edb85915（12シーン・3分32秒・セリフ26本・無音なし）。ワーカー自動終了
 - コミット 1e39e9d を origin/main へ push（render_project.mjs の TTS 指示＋フレーム掃除、worker.ts の作業フォルダ移設＋rmSync 再試行、作業ログ）。vitest 130件通過
 - 残課題: scene worker の多重起動対策（claim 条件に locked_by is null／stale 引き継ぎ）、シーン並列化
+
+## 2026-09-19 昼：完成見本が利用者に一切表示されない不具合の修正
+
+- 報告: 職員画面の「完成見本の公開範囲」を「提出前から公開」にしても利用者に見本が出ない
+- 原因: e2672b2（08-17）で利用者ページ src/app/(trainee)/tasks/[id]/page.tsx の配布判定が「source_assets のみ」に固定され、visible_before_submission と提出済みの判定が消えていた。職員側の切替（setSampleVisibility）は DB を正しく更新していたが、利用者側が値を見ていなかった
+- 修正: 判定を src/lib/tasks/pickMaterials.ts の pickDownloadableMaterials に切り出し（支給素材=常に配布、完成見本=「提出前から公開」なら即、「職員のみ」なら提出後に配布）。vitest 4件追加（134件通過）。setSampleVisibility は update エラーを握りつぶさず throw するように変更。eslint/tsc 通過。未コミット
+- 注意: scripts/scene/registerSceneTask.ts が生成する案件は既定で「職員のみ（提出後に公開）」。提出前から見せたい案件は職員画面で切り替える

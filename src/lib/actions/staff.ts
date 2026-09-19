@@ -25,10 +25,13 @@ export async function setSampleVisibility(
 ) {
   await requireRole("staff", "admin");
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("task_materials")
     .update({ visible_before_submission: visibleBeforeSubmission })
     .eq("id", materialId);
+  if (error) {
+    throw new Error(`完成見本の公開範囲を変更できませんでした: ${error.message}`);
+  }
   revalidatePath(`/staff/tasks/${taskId}`);
 }
 

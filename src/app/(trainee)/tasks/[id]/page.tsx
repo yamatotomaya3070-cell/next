@@ -32,7 +32,11 @@ import { formatDue } from "@/components/work/AssignmentCard";
 import { FeedbackView } from "./FeedbackView";
 import { WorkSteps } from "@/components/work/WorkSteps";
 import { getWorkSteps } from "@/lib/guide/workflow";
-import { pickChecklistItems, pickInstructionSheet } from "@/lib/tasks/pickMaterials";
+import {
+  pickChecklistItems,
+  pickDownloadableMaterials,
+  pickInstructionSheet,
+} from "@/lib/tasks/pickMaterials";
 
 export const dynamic = "force-dynamic";
 
@@ -112,10 +116,10 @@ export default async function TaskDetailPage({
   const autoArrange = materials.some(
     (m) => m.kind === "source_assets" && m.media_url?.startsWith("scene-nisa/"),
   );
-  // 完成見本(kind='sample')は「答え」なので利用者には見せない（スタッフ専用）。
-  // 利用者には支給素材(source_assets)のみ配布する。
-  const downloadable = materials.filter(
-    (m) => m.kind === "source_assets" && m.media_url,
+  // 支給素材は常に、完成見本は職員の設定（提出前から公開 / 提出後に公開）に従って配布する
+  const downloadable = pickDownloadableMaterials(
+    materials,
+    submissions.length > 0,
   );
   // media_url は private バケット 'materials' 内の相対パス。都度署名付きURLを発行する
   const signedDownloads = await Promise.all(

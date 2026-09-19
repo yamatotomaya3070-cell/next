@@ -47,3 +47,22 @@ export function pickInstructionSheet(
     ) ?? null
   );
 }
+
+/**
+ * 利用者に配布するファイル（署名付きURLを発行する対象）。
+ * - 支給素材(source_assets)は常に配布する
+ * - 完成見本(sample)は職員の設定に従う:
+ *     visible_before_submission=true  → 提出前から見せる
+ *     visible_before_submission=false → 職員のみ（利用者には提出後に公開）
+ */
+export function pickDownloadableMaterials(
+  materials: TaskMaterial[],
+  hasSubmitted: boolean,
+): TaskMaterial[] {
+  return materials.filter((m) => {
+    if (!m.media_url) return false;
+    if (m.kind === "source_assets") return true;
+    if (m.kind !== "sample") return false;
+    return m.visible_before_submission || hasSubmitted;
+  });
+}

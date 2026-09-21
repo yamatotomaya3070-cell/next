@@ -1,5 +1,6 @@
-﻿# 絆 YouTube動画生成ワーカー セットアップ（Windows 10 / 11）
+﻿# 絆 ワーカー セットアップ（YouTube動画生成＋提出動画の検品、Windows 10 / 11）
 # 「セットアップ（職員用）.bat」から呼ばれる。事業所で1台だけ、常時起動のパソコンで実行する。
+# start-worker.bat が「YouTube動画生成」と「提出動画の検品」の2つのワーカーを別々の窓で起動する。
 #
 # やること
 #   1. Git / Node.js / ffmpeg が無ければ winget で入れる
@@ -67,7 +68,7 @@ function MakeShortcut($lnkPath, $target, $workDir, $desc) {
 }
 
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host " 絆 YouTube動画生成ワーカー セットアップ" -ForegroundColor Cyan
+Write-Host " 絆 ワーカー セットアップ（YouTube動画生成＋提出動画の検品）" -ForegroundColor Cyan
 Write-Host " 入れる場所: $InstallDir"
 Write-Host "================================================" -ForegroundColor Cyan
 
@@ -129,19 +130,20 @@ $bat = Join-Path $InstallDir "start-worker.bat"
 if (-not $NoStartup) {
   Step 6 "パソコン起動時に自動で立ち上がるようにする"
   $startup = [Environment]::GetFolderPath("Startup")
-  MakeShortcut (Join-Path $startup "絆ワーカー.lnk") $bat $InstallDir "絆 YouTube動画生成ワーカー（自動起動）"
+  MakeShortcut (Join-Path $startup "絆ワーカー.lnk") $bat $InstallDir "絆 ワーカー（YouTube動画生成＋提出動画の検品）の自動起動"
   Ok "スタートアップに登録しました"
   $desktop = [Environment]::GetFolderPath("Desktop")
-  MakeShortcut (Join-Path $desktop "絆ワーカーを起動.lnk") $bat $InstallDir "絆 YouTube動画生成ワーカーを手で起動する"
+  MakeShortcut (Join-Path $desktop "絆ワーカーを起動.lnk") $bat $InstallDir "絆 ワーカー（YouTube動画生成＋提出動画の検品）を手で起動する"
   Ok "デスクトップに「絆ワーカーを起動」を置きました"
 }
 
 if (-not $NoStart) {
   Step 7 "ワーカーを起動する"
   Start-Process -FilePath $bat -WorkingDirectory $InstallDir -WindowStyle Minimized
-  Ok "起動しました（タスクバーに「絆ワーカー」の窓が出ます。閉じないでください）"
+  Ok "起動しました（タスクバーに「絆ワーカー」の窓が2つ出ます。どちらも閉じないでください）"
 }
 
 Write-Host ""
 Write-Host "セットアップが終わりました。" -ForegroundColor Green
 Write-Host "アプリの「YouTube動画生成」でテーマを登録すると、このパソコンが5〜6分で案件を作ります。"
+Write-Host "利用者が動画を提出すると、このパソコンが完成見本と照合して「提出物レビュー」に結果を出します。"

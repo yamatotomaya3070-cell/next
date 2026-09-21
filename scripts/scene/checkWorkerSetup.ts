@@ -74,8 +74,16 @@ async function run(): Promise<Check[]> {
   if (missingEnv.length === 0) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\/$/, "");
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const sb = await httpOk(`${url}/rest/v1/scene_jobs?select=id&limit=1`, { apikey: key, Authorization: `Bearer ${key}` });
+    const sbHeaders = { apikey: key, Authorization: `Bearer ${key}` };
+    const sb = await httpOk(`${url}/rest/v1/scene_jobs?select=id&limit=1`, sbHeaders);
     checks.push({ label: "Supabase への接続（scene_jobs を読める）", ok: sb.ok, hint: `${sb.detail}。URL と service role key を確かめてください` });
+    // 提出動画の検品ワーカー（scripts/video/inspect-worker.ts）が使うテーブル
+    const insp = await httpOk(`${url}/rest/v1/submission_inspections?select=id&limit=1`, sbHeaders);
+    checks.push({
+      label: "検品ジョブの表（submission_inspections を読める）",
+      ok: insp.ok,
+      hint: `${insp.detail}。データベースに submission_inspections が無いか、権限がありません。開発担当に伝えてください`,
+    });
     const gem = await httpOk(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=${process.env.GEMINI_API_KEY}`);
     checks.push({ label: "Gemini API キー", ok: gem.ok, hint: `${gem.detail}。GEMINI_API_KEY を確かめてください` });
   }

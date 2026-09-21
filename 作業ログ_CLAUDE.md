@@ -380,3 +380,46 @@ PC依存:
 - 修正: 判定を src/lib/tasks/pickMaterials.ts の pickDownloadableMaterials に切り出し（支給素材=常に配布、完成見本=「提出前から公開」なら即、「職員のみ」なら提出後に配布）。vitest 4件追加（134件通過）。setSampleVisibility は update エラーを握りつぶさず throw するように変更。eslint/tsc 通過。コードレビュー承認 → コミット cdd6ecb を origin/main へ push、Vercel 本番 Ready（kizuna-video-training-yamato2.vercel.app）
 - 注意: scripts/scene/registerSceneTask.ts が生成する案件は既定で「職員のみ（提出後に公開）」。提出前から見せたい案件は職員画面で切り替える
 - 確認(本番DB): 新NISA案件 56ec5dab の完成見本(f0c6eae7)は既に visible_before_submission=true（職員の切替は保存されていた）。Storage に sample.mp4(10MB)/assets.zip(18MB) あり、割当1件(in_progress・提出0)。修正版デプロイ後は利用者の「素材ファイル」欄に見本が出る状態。他3案件（iDeCo・相続税×2）は「職員のみ」のまま・割当0
+
+## 2026-09-21 深夜：提出後AI検品の段階1（配線）＋段階2（セリフ音声の構成照合）
+
+- 背景: 提出後のAIレビューは「セルフチェック未チェック／動画以外の拡張子」だけで自動差し戻ししており、機械検品(submission_inspections)は提出時に pending 行を作るだけで結果が差し戻し判定に届いていなかった。検品ワーカーも常駐バッチに入っておらず、対象も video_jobs の正解データがある案件だけ（主力のSCENE案件は対象外）だった
+- 段階1（配線）
+  - `src/lib/review/inspectionTarget.ts`（新規）: 突き合わせ先を案件から決める。video_jobs.answer_data（template）→ 無ければ task_materials kind=sample（完成見本）＋ source_assets（支給ZIP）。submitWork の検品登録条件もこれに統一（`isInspectableTask`）
+  - `src/lib/video/inspection/compareSample.ts`（新規・テスト5件）: 正解データ表を持たないSCENE案件用に、完成見本を実測した値を期待値にする（尺±2秒／解像度一致／映像・音声あり／平均音量±6dB）
+  - `src/lib/review/applyInspection.ts`（新規・テスト5件）: 検品完了時にAI下書きへ結果を反映し、fail があれば自動差し戻し（approved & reviewed_by=null、理由を先頭に）。AI採点は再実行しない。職員確定済みなら触らない。下書きが無ければ createAiReview で作り直す
+  - `scripts/video/inspect-worker.ts` 書き換え: target 別の比較、完了時に applyInspectionResult、`--watch` 常駐モード。`start-worker.bat` は動画生成＋検品の2ウィンドウ起動に変更
+  - `CheckItem.message`（任意）を追加し、autoReturn は fail 項目にこれがあればそのまま利用者向け理由に使う
+- 段階2（構成照合）
+  - `src/lib/audio/fingerprint.ts`（新規・テスト4件）: 外部依存なしの星座型（Shazam式）音声指紋。8kHz mono／窓1024／hop256、帯域6分割ピーク→ペアハッシュ(f1,f2,Δt)→オフセット投票。閾値 score≥0.25・coverage≥0.5、2回目以降の一致は最良の40%以上（重複検出用）
+  - `src/lib/video/inspection/structure.ts`（新規・テスト8件）: セリフ音声の「入れ忘れ／重複／順番／間隔(±1.5秒)」を CheckItem 化。利用者向け文言はセリフ名（S06_03（ミナ先生））と分秒つき。抜けたセリフの前後の間隔は二重指摘しない
+  - `scripts/video/{unzip,pcm,structureCheck}.ts`（新規）: 純Node の ZIP 読み出し、ffmpeg→PCM、支給ZIPの `S**_**_*.wav` を取り出して見本と提出の両方で位置を探す
+  - `scripts/video/smoke-structure-check.ts`（新規・DB不要）: パッケージフォルダから「見本そのまま／セリフ1本切り落とし／セリフ1本重ね」の提出を ffmpeg で作って照合する
+- 検証: tsc・eslint 通過、vitest 156→164件通過。実データ（poc/scene/out/就労者パッケージ_新NISA、5分22秒・セリフ39本）で ①見本そのまま=9項目すべてOK（見本内で39/39本検出、最低スコア0.42、最低カバー率0.83、処理84秒）②S06_03 を切り落とし=「入れ忘れ NG（足りない: S06_03（ミナ先生））」＋尺NG ③末尾に重ね=「重複 NG（S06_03が2回）」＋尺NG。再エンコード(libx264/aac)済みの提出でも一致した。ログ scripts/output/smoke-structure-nisa.log
+- 未実施: 本番DBでの通し（提出→ワーカー検品→自動差し戻し→再提出）。常駐PCで start-worker.bat を起動すれば動く。未コミット
+- 次: テロップ検品（段階3）、見本フレーム差分・スタイル判定（段階4）、わざとミスを入れた提出セットの自動生成と精度測定（段階5）
+- コードレビュー（code-reviewer）対応: ①HIGH 検品中に再提出されていたら古い結果で差し戻さない（applyInspectionResult が同じ割当の新しい version を確認してスキップ）②`--job` 実行時も locked_at の条件つきでクレーム（常駐ワーカーとの二重処理防止）③inspectionTarget は is_approved=true の見本だけ使う ④failed は retry_count<3 なら自動で拾い直し、check_result 保存→反映→completed の順にして途中で落ちても拾い直せるようにした
+
+## 2026-09-21 昼〜午後：提出後AI検品の段階3（セリフ字幕＝テロップの照合）
+
+- 段階3（字幕照合）
+  - `src/lib/video/inspection/telop.ts`（新規・テスト12件）: 純関数。作業指示一覧（CSV／Markdown表）から「音声ファイル→字幕の文」を読み、OCR結果と比べて「字幕の入れ忘れ（telop_present）」「字幕の文（telop_text）」を CheckItem 化。類似度 0.85 以上=一致、0.5 未満=明らかに違う（fail）、その間=unknown（職員確認、差し戻し文言なし）。句読点・空白・全角半角は無視、話者ラベルの混入は除去。利用者向け文言はセリフ名＋分秒（例「S06_03（ミナ先生）: 2分35秒あたり」）
+  - `scripts/video/telopOcr.ts`（新規）: ffmpeg で画面の下30%を幅720に切り出し、Gemini（gemini-2.5-flash、GEMINI_OCR_MODEL で変更可）に12枚ずつまとめて JSON で読ませる。GEMINI_API_KEY が無ければ null → unknown 扱い
+  - `scripts/video/telopCheck.ts`（新規）: 構成照合で分かった提出動画内のセリフ位置を使い、セリフの真ん中で1枚、文字が無かったものだけ 30%・70% の位置で追加2枚を OCR
+  - inspect-worker.ts / smoke-structure-check.ts に組み込み。スモークにケース4（字幕を黒く塗りつぶし）・5（別の文を drawtext で上書き）を追加
+- 12:29 の初回スモークは 1ケース目通過後に Gemini への fetch が HTTP2 refused stream で落ちて中断（コードの不具合ではなく通信）。対策として telopOcr.ts に再試行を追加（fetch failed／429／5xx を最大3回、2秒→4秒待ち）
+- 検証（再実行、ログ scripts/output/smoke-telop-variants-run2.log）: tsc・eslint・vitest 168件通過。実データ新NISA（5分22秒・セリフ39本）で ①見本そのまま=11項目すべてOK（39本OCR、文字なし0）②S06_03 切り落とし=「セリフの入れ忘れ NG」③末尾に重ね=「セリフの重複 NG」④字幕塗りつぶし=「字幕の入れ忘れ NG（S06_03: 2分35秒あたり）」⑤字幕を別の文に=「字幕の文 NG（OCR文→指示文を併記）」。誤検知なし。各ケース約290秒（構成照合＋OCR）
+- 気づき: 長い ffmpeg 処理の後の最初の Gemini 呼び出しは毎回「fetch failed」になり再試行1回で通った（5ケースとも同じ）。接続の使い回しが切れているためと思われ、再試行は必須
+- 未コミット（段階1〜3すべて）。未実施: 本番DBでの通し（常駐PCで start-worker.bat 起動が必要）
+- 次: 段階4（見本フレーム差分・スタイル判定）、段階5（わざとミス入り提出セットの自動生成と精度測定）
+
+## 2026-09-21 午後：検品ワーカーを職員が入れられる形に（セットアップZIP・教科書第11章・レビュー画面）
+
+- 前提: 職員向けセットアップZIP（教科書第11章）は setup.ps1 → start-worker.bat をスタートアップ登録する作りで、start-worker.bat は 09-21 深夜の段階1で「YouTube動画生成」＋「提出動画の検品」の2窓起動に変更済み。つまり仕組みとしては同じZIPで検品ワーカーも入るが、説明・準備チェック・画面が動画生成だけの前提だった。さらに段階1〜3が未コミットなので、職員PCが git pull しても検品ワーカーのコードが来ない
+- scripts/scene/checkWorkerSetup.ts: 「検品ジョブの表（submission_inspections を読める）」を追加。本機で全○
+- scripts/worker-setup/: 読んでください.txt を2ワーカー前提に書き直し（何をするか／窓が2つ／提出物レビューで確かめる／「順番待ち」のまま=ワーカー停止）。setup.ps1 の見出し・ショートカット説明・完了メッセージ、セットアップ.bat の rem も同様
+- 教科書第11章（src/lib/guide/chapters.ts）: 題を「案件を作る・提出動画を検品するパソコンの準備」に。なぜ必要か（検品ワーカーの説明を追加）／確かめ方（窓2つ、提出物レビューに5分前後で結果）／困ったとき（「順番待ち」も）。ZIPサイズ表記 5KB→6KB
+- 職員の提出物レビュー画面（src/app/staff/reviews/page.tsx）: 機械検品が pending/processing のとき「長く順番待ちのままなら検品ワーカーのパソコンが動いていません（教科書 第11章）」のリンクを追加
+- ZIP 作り直し: public/guide/setup/kizuna_worker_setup.zip（6KB・4ファイル）。Expand-Archive で日本語ファイル名が正しく展開されることを確認
+- 検証: tsc・eslint・vitest 168件通過
+- 残: 段階1〜3＋本日分のコミットと origin/main への push（push で Vercel 本番に反映、職員PCの「更新（職員用）.bat」で検品ワーカーが入る）。その後、常駐PCで更新 bat → 提出→自動照合→差し戻しの通し確認

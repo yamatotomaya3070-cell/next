@@ -1,5 +1,5 @@
-// 案件を作るパソコン（ワーカー）のセットアップ一式を ZIP にし、
-// 教科書（第11章 案件を作るパソコンの準備）からダウンロードできるよう public に置く。
+// ワーカーPC（YouTube動画生成＋提出動画の検品）のセットアップ一式を ZIP にし、
+// 教科書（第11章 案件を作る・提出動画を検品するパソコンの準備）からダウンロードできるよう public に置く。
 // scripts/worker-setup の中身を直したら、これを実行して ZIP を作り直す。
 //   使い方: npx tsx scripts/scene/buildWorkerSetupZip.ts
 import { mkdirSync, readdirSync, statSync } from "node:fs";

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import type {
   CheckItem,
@@ -286,6 +287,16 @@ export default async function ReviewsPage() {
                       {inspection.status === "failed"
                         ? "照合に失敗しました。動画を見て判断してください。"
                         : "照合の順番待ちです。動画を見て判断して構いません。"}
+                      {inspection.status !== "failed" && (
+                        <>
+                          {" "}
+                          長く順番待ちのままなら、検品ワーカーのパソコンが動いていません（
+                          <Link href="/staff/guide/worker#trouble" className="underline">
+                            教科書 第11章
+                          </Link>
+                          ）。
+                        </>
+                      )}
                     </p>
                   ) : (
                     <ul className="mt-2 space-y-1.5">

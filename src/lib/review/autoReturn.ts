@@ -53,7 +53,8 @@ export function decideAutoReturn(input: AutoReturnInput): AutoReturnDecision {
   for (const check of input.checkResult?.checks ?? []) {
     if (check.status !== "fail") continue;
     reasons.push(
-      `${check.label}が見本と違います（あなたの動画: ${check.actual} / 見本: ${check.expected}）。`,
+      check.message ??
+        `${check.label}が見本と違います（あなたの動画: ${check.actual} / 見本: ${check.expected}）。`,
     );
   }
 

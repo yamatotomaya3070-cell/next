@@ -2,14 +2,22 @@
  * 提出動画の機械検品ワーカー。
  *
  * submission_inspections テーブルをポーリングし、未完了ジョブを1件ずつ処理する。
- * ffmpeg/ffprobe に依存するため、scripts/video/worker.ts と同じ理由で
- * Vercel 等のサーバーレス環境では実行できない。提出時（submitWork）は
- * submission_inspections に pending 行を作るだけで、実処理はこのワーカーを
- * ffmpeg のあるマシンで手動 or タスクスケジューラから実行する運用を前提にする。
+ * ffmpeg/ffprobe に依存するため、Vercel 等のサーバーレス環境では実行できない。
+ * 提出時（submitWork）は submission_inspections に pending 行を作るだけで、
+ * 実処理はこのワーカーを ffmpeg のあるマシン（常時起動PC）で動かす。
+ *
+ * 案件の種類で突き合わせ方が変わる（src/lib/review/inspectionTarget.ts）:
+ *   - template: video_jobs.answer_data（正解データ表）と比べる
+ *   - sample  : 完成見本(task_materials kind=sample)を実測して比べる。
+ *               支給素材ZIP(kind=source_assets)があれば、セリフ音声の構成照合も行う
+ *
+ * 検品が終わったら src/lib/review/applyInspection.ts で AI レビュー下書きへ反映し、
+ * NG があれば利用者へ自動で差し戻す。
  *
  * 使い方:
  *   npx tsx scripts/video/inspect-worker.ts            # 未完了ジョブを全件処理して終了
  *   npx tsx scripts/video/inspect-worker.ts --job <id>  # 指定ジョブのみ処理
+ *   npx tsx scripts/video/inspect-worker.ts --watch     # 常駐ポーリング（start-worker.bat から）
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,10 +25,16 @@ import { hostname } from "node:os";
 import { loadEnvLocal } from "./env";
 import { getSupabaseAdmin } from "./supabaseAdmin";
 import { probeStreams, probeVolumeDb } from "./exec";
+import { runStructureCheck } from "./structureCheck";
+import { runTelopCheck } from "./telopCheck";
+import { readZipEntries } from "./unzip";
 import { getTemplateConfig, VIDEO_TEMPLATE_TYPES } from "../../src/lib/video/templates";
 import { compareProbeToAnswer } from "../../src/lib/video/inspection/compare";
+import { compareProbeToSample } from "../../src/lib/video/inspection/compareSample";
 import { computeAutoScore } from "../../src/lib/video/inspection/score";
-import type { CheckResult, ProbeResult } from "../../src/lib/video/inspection/types";
+import { loadInspectionTarget, type InspectionTarget } from "../../src/lib/review/inspectionTarget";
+import { applyInspectionResult } from "../../src/lib/review/applyInspection";
+import type { CheckItem, CheckResult, ProbeResult } from "../../src/lib/video/inspection/types";
 import type { TemplateAnswerData } from "../../src/lib/video/templates/types";
 
 /** video_jobs.answer_data(jsonb) は無検証で保存されているため、比較前に最低限の形を確認する */
@@ -43,9 +57,16 @@ loadEnvLocal();
 
 const WORKER_ID = `${hostname()}-${process.pid}`;
 const STALE_LOCK_MS = 15 * 60 * 1000; // 15分以上ロックが更新されないジョブは奪って再開する
-const ACTIVE_STATUSES = ["pending", "probing", "comparing"] as const;
+const POLL_INTERVAL_MS = Number(process.env.WORKER_POLL_MS) || 15_000;
+/** 一時的な失敗（通信・ffmpeg）はこの回数まで自動でやり直す */
+const MAX_RETRIES = 3;
+/**
+ * 拾い直す対象。pending/probing/comparing に加え、retry_count が上限未満の failed も含める。
+ * completed は含めない（検品結果の反映まで終わった状態でだけ completed にする）。
+ */
+const CLAIMABLE_FILTER = `status.in.(pending,probing,comparing),and(status.eq.failed,retry_count.lt.${MAX_RETRIES})`;
 
-const CHECK_STATUS_LABEL: Record<string, string> = { pass: "OK", fail: "NG", unknown: "不明" };
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type InspectionRow = {
   id: string;
@@ -74,7 +95,7 @@ async function claimNextJob(): Promise<InspectionRow | null> {
   const { data: candidates, error } = await supabase
     .from("submission_inspections")
     .select(`${INSPECTION_SELECT}, locked_at`)
-    .in("status", ACTIVE_STATUSES as unknown as string[])
+    .or(CLAIMABLE_FILTER)
     .order("created_at", { ascending: true })
     .limit(20);
   if (error) throw new Error(`検品ジョブ取得に失敗: ${error.message}`);
@@ -95,10 +116,14 @@ async function claimNextJob(): Promise<InspectionRow | null> {
   return null;
 }
 
-/** 対象提出物と、突き合わせに使う正解データ(video_jobs.answer_data)を取得する */
-async function loadContext(
-  submissionId: string,
-): Promise<{ filePath: string; fileName: string | null; answerData: TemplateAnswerData | null }> {
+interface Context {
+  filePath: string;
+  fileName: string | null;
+  target: InspectionTarget | null;
+}
+
+/** 対象提出物と、突き合わせ先（正解データ or 完成見本）を取得する */
+async function loadContext(submissionId: string): Promise<Context> {
   const supabase = getSupabaseAdmin();
 
   const { data: submission, error: subErr } = await supabase
@@ -116,55 +141,95 @@ async function loadContext(
     .single();
   if (asErr || !assignment) throw new Error(`task_assignments取得に失敗: ${asErr?.message}`);
 
-  const { data: videoJob, error: vjErr } = await supabase
-    .from("video_jobs")
-    .select("answer_data")
-    .eq("task_id", assignment.task_id)
-    .not("answer_data", "is", null)
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (vjErr) throw new Error(`video_jobs取得に失敗: ${vjErr.message}`);
-
   return {
     filePath: submission.file_path,
     fileName: submission.file_name,
-    answerData: (videoJob?.answer_data as TemplateAnswerData | undefined) ?? null,
+    target: await loadInspectionTarget(supabase, assignment.task_id),
   };
 }
 
-/** submissionsバケットから提出動画をローカルにダウンロードし、workdir内の相対ファイル名を返す */
-async function downloadSubmission(filePath: string, fileName: string | null, workdir: string): Promise<string> {
+/** Storage のファイルを workdir に保存し、workdir 内の相対ファイル名を返す */
+async function downloadTo(bucket: string, path: string, localName: string, workdir: string): Promise<string> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.storage.from("submissions").download(filePath);
-  if (error || !data) throw new Error(`提出動画のダウンロードに失敗: ${error?.message}`);
-
-  const buffer = Buffer.from(await data.arrayBuffer());
-  const localName = fileName ? fileName.replace(/[^\w.\-]+/g, "_") : "submission.mp4";
-  writeFileSync(join(workdir, localName), buffer);
+  const { data, error } = await supabase.storage.from(bucket).download(path);
+  if (error || !data) throw new Error(`${bucket}/${path} のダウンロードに失敗: ${error?.message}`);
+  writeFileSync(join(workdir, localName), Buffer.from(await data.arrayBuffer()));
   return localName;
 }
 
-/** 機械検品結果を、対応するAI採点(feedback)の criteria に "machine_check" 項目として追記する */
-async function appendMachineCheckToFeedback(submissionId: string, checkResult: CheckResult) {
+async function downloadBuffer(bucket: string, path: string): Promise<Buffer> {
   const supabase = getSupabaseAdmin();
-  const { data: feedback, error } = await supabase
-    .from("feedback")
-    .select("id, criteria")
-    .eq("submission_id", submissionId)
-    .eq("source", "ai")
-    .maybeSingle();
-  if (error || !feedback) return; // AI採点が無ければ何もしない
+  const { data, error } = await supabase.storage.from(bucket).download(path);
+  if (error || !data) throw new Error(`${bucket}/${path} のダウンロードに失敗: ${error?.message}`);
+  return Buffer.from(await data.arrayBuffer());
+}
 
-  const comment = checkResult.checks
-    .map((c) => `${c.label}: ${CHECK_STATUS_LABEL[c.status]}（実測: ${c.actual} / 期待: ${c.expected}）`)
-    .join(" / ");
-  const existingCriteria = (Array.isArray(feedback.criteria) ? feedback.criteria : []) as Array<{ key?: string }>;
-  const criteria = [
-    ...existingCriteria.filter((c) => c.key !== "machine_check"),
-    { key: "machine_check", label: "機械検品（自動）", score: checkResult.autoScore, comment },
-  ];
-  await supabase.from("feedback").update({ criteria }).eq("id", feedback.id);
+function probeAll(file: string, workdir: string): ProbeResult {
+  const streams = probeStreams(file, workdir);
+  const volume = probeVolumeDb(file, workdir);
+  return {
+    durationSec: streams.durationSec,
+    width: streams.width,
+    height: streams.height,
+    hasVideo: streams.hasVideo,
+    hasAudio: streams.hasAudio,
+    meanVolumeDb: volume.meanVolumeDb,
+  };
+}
+
+function safeLocalName(fileName: string | null, fallback: string): string {
+  return fileName ? fileName.replace(/[^\w.\-]+/g, "_") : fallback;
+}
+
+/** 正解データ表（video_jobs）との突き合わせ */
+function compareWithTemplate(probe: ProbeResult, answerData: TemplateAnswerData): CheckItem[] {
+  assertValidAnswerData(answerData);
+  return compareProbeToAnswer(probe, answerData, getTemplateConfig(answerData.templateType));
+}
+
+/** 完成見本との突き合わせ（実測比較＋セリフ音声の構成照合） */
+async function compareWithSample(
+  submissionLocal: string,
+  probe: ProbeResult,
+  target: Extract<InspectionTarget, { kind: "sample" }>,
+  workdir: string,
+): Promise<CheckItem[]> {
+  const sampleLocal = await downloadTo("materials", target.samplePath, "sample.mp4", workdir);
+  const checks = compareProbeToSample(probe, probeAll(sampleLocal, workdir));
+
+  if (!target.assetsPath) return checks;
+  const assetsZip = await downloadBuffer("materials", target.assetsPath);
+  const structure = runStructureCheck({
+    workdir,
+    sampleFile: sampleLocal,
+    submissionFile: submissionLocal,
+    assetsZip,
+  });
+  if (structure.details.length > 0) {
+    const weakest = Math.min(...structure.details.map((d) => d.inSample?.score ?? 0));
+    console.log(
+      `  構成照合: セリフ ${structure.details.filter((d) => d.inSample).length}/${structure.details.length}本を見本で確認（最低スコア ${weakest.toFixed(2)}）`,
+    );
+  }
+
+  // 字幕照合。作業指示一覧は ZIP 内の CSV を優先し、無ければ案件の教材（revision_note）を使う
+  const telop = await runTelopCheck({
+    workdir,
+    submissionFile: submissionLocal,
+    instructionText: readInstructionCsv(assetsZip) ?? target.instructionText,
+    voices: structure.details,
+    voiceDurations: Object.fromEntries(structure.details.map((d) => [d.name, d.durationSec])),
+  });
+  if (telop.skippedReason) console.log(`  字幕照合: ${telop.skippedReason}`);
+  else console.log(`  字幕照合: セリフ ${telop.observations.length}本の字幕を確認`);
+
+  return [...checks, ...structure.checks, ...telop.checks];
+}
+
+/** 支給素材ZIPの 作業指示一覧.csv（あれば） */
+function readInstructionCsv(assetsZip: Buffer): string | null {
+  const entry = readZipEntries(assetsZip, (name) => /(^|\/)作業指示一覧\.csv$/.test(name))[0];
+  return entry ? entry.data.toString("utf8") : null;
 }
 
 async function processJob(job: InspectionRow): Promise<void> {
@@ -175,10 +240,10 @@ async function processJob(job: InspectionRow): Promise<void> {
   let currentStage: "probing" | "comparing" = "probing";
 
   try {
-    await updateInspection(inspectionId, { status: "probing", progress: 10 });
+    await updateInspection(inspectionId, { status: "probing", progress: 10, started_at: new Date().toISOString() });
 
-    const { filePath, fileName, answerData } = await loadContext(job.submission_id);
-    if (!answerData) {
+    const { filePath, fileName, target } = await loadContext(job.submission_id);
+    if (!target) {
       await updateInspection(inspectionId, {
         status: "skipped",
         progress: 100,
@@ -186,41 +251,48 @@ async function processJob(job: InspectionRow): Promise<void> {
         locked_by: null,
         locked_at: null,
       });
-      console.log(`検品 ${inspectionId}: 正解データが見つからないためスキップしました`);
+      console.log(`検品 ${inspectionId}: 完成見本も正解データも無いためスキップしました`);
       return;
     }
-    assertValidAnswerData(answerData);
 
-    const localName = await downloadSubmission(filePath, fileName, workdir);
-    const streams = probeStreams(localName, workdir);
-    const volume = probeVolumeDb(localName, workdir);
-    const probeResult: ProbeResult = {
-      durationSec: streams.durationSec,
-      width: streams.width,
-      height: streams.height,
-      hasVideo: streams.hasVideo,
-      hasAudio: streams.hasAudio,
-      meanVolumeDb: volume.meanVolumeDb,
-    };
+    const submissionLocal = await downloadTo("submissions", filePath, safeLocalName(fileName, "submission.mp4"), workdir);
+    const probeResult = probeAll(submissionLocal, workdir);
 
     currentStage = "comparing";
-    await updateInspection(inspectionId, { status: "comparing", progress: 60, probe_result: probeResult });
+    await updateInspection(inspectionId, { status: "comparing", progress: 50, probe_result: probeResult });
 
-    const templateConfig = getTemplateConfig(answerData.templateType);
-    const checks = compareProbeToAnswer(probeResult, answerData, templateConfig);
+    const checks =
+      target.kind === "template"
+        ? compareWithTemplate(probeResult, target.answerData)
+        : await compareWithSample(submissionLocal, probeResult, target, workdir);
     const checkResult: CheckResult = { checks, autoScore: computeAutoScore(checks) };
 
-    await appendMachineCheckToFeedback(job.submission_id, checkResult);
+    // 結果を先に保存するが、status は comparing のまま。ここで落ちても次のワーカーが拾い直せる
+    await updateInspection(inspectionId, { progress: 90, check_result: checkResult });
+
+    // AIレビュー下書きへ反映（NGがあれば自動差し戻し）。
+    // 反映に失敗しても検品結果は残し、completed にして error に理由を書く（無限に拾い直さない）
+    let applyError: string | null = null;
+    try {
+      const applied = await applyInspectionResult(job.submission_id, checkResult);
+      const note = applied.note ? `（${applied.note}）` : "";
+      console.log(
+        `検品 ${inspectionId} が完了しました（自動採点 ${checkResult.autoScore}点、` +
+          `${applied.autoReturned ? `自動差し戻し: ${applied.reasons.length}件` : "職員の承認待ち"}${note}）`,
+      );
+    } catch (err) {
+      applyError = err instanceof Error ? err.message : String(err);
+      console.error(`検品 ${inspectionId}: レビューへの反映に失敗しました（検品結果は保存済み）:`, applyError);
+    }
 
     await updateInspection(inspectionId, {
       status: "completed",
       progress: 100,
-      check_result: checkResult,
+      error: applyError ? `レビューへの反映に失敗: ${applyError}` : null,
       completed_at: new Date().toISOString(),
       locked_by: null,
       locked_at: null,
     });
-    console.log(`検品 ${inspectionId} が完了しました（自動採点: ${checkResult.autoScore}点）`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`検品 ${inspectionId} が失敗しました:`, message);
@@ -235,34 +307,68 @@ async function processJob(job: InspectionRow): Promise<void> {
   }
 }
 
+async function drainJobs(): Promise<number> {
+  let processed = 0;
+  for (;;) {
+    const job = await claimNextJob();
+    if (!job) break;
+    processed += 1;
+    console.log(`検品 ${job.id} を処理します`);
+    await processJob(job);
+  }
+  return processed;
+}
+
 async function main() {
   const jobIdArg = process.argv.includes("--job") ? process.argv[process.argv.indexOf("--job") + 1] : null;
+  const watch = process.argv.includes("--watch");
 
   if (jobIdArg) {
+    // 常駐ワーカーが処理中のジョブを横取りしない（同じ作業フォルダに二重に書くと壊れる）
     const supabase = getSupabaseAdmin();
+    const staleBefore = new Date(Date.now() - STALE_LOCK_MS).toISOString();
     const { data: job, error } = await supabase
       .from("submission_inspections")
       .update({ locked_by: WORKER_ID, locked_at: new Date().toISOString() })
       .eq("id", jobIdArg)
+      .or(`locked_at.is.null,locked_at.lt.${staleBefore}`)
       .select(INSPECTION_SELECT)
       .maybeSingle();
     if (error || !job) {
-      console.error("指定ジョブが見つかりません:", error?.message);
+      console.error(
+        error
+          ? `指定ジョブの取得に失敗: ${error.message}`
+          : "指定ジョブが見つからないか、別のワーカーが処理中です（15分待つと引き継げます）",
+      );
       process.exit(1);
     }
     await processJob(job as InspectionRow);
     return;
   }
 
-  let processedAny = false;
-  for (;;) {
-    const job = await claimNextJob();
-    if (!job) break;
-    processedAny = true;
-    console.log(`検品 ${job.id} を処理します`);
-    await processJob(job);
+  if (watch) {
+    console.log(`検品ワーカーを watch モードで起動しました（${POLL_INTERVAL_MS / 1000}秒間隔）。停止は Ctrl+C`);
+    let shuttingDown = false;
+    process.on("SIGTERM", () => {
+      shuttingDown = true;
+    });
+    process.on("SIGINT", () => {
+      shuttingDown = true;
+    });
+    for (;;) {
+      try {
+        await drainJobs();
+      } catch (err) {
+        console.error("ポーリング中にエラー:", err instanceof Error ? err.message : err);
+      }
+      if (shuttingDown) break;
+      await sleep(POLL_INTERVAL_MS);
+    }
+    return;
   }
-  if (!processedAny) console.log("処理待ちの検品ジョブはありません");
+
+  const processed = await drainJobs();
+  if (!processed) console.log("処理待ちの検品ジョブはありません");
 }
 
 main().catch((err) => {

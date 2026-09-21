@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile, createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAiReview } from "@/lib/review/createAiReview";
+import { isInspectableTask } from "@/lib/review/inspectionTarget";
 import { parseSelfCheck } from "@/lib/review/parseSelfCheck";
 import { describeMessagesError } from "@/lib/messages/errors";
 import type { ProgressEvent } from "@/lib/types";
@@ -128,32 +129,26 @@ export async function submitWork(
     minutes_delta: workMinutes,
   });
 
-  // 機械検品ジョブ登録（AI動画生成パイプラインの案件で正解データがある場合のみ。
-  // 該当なしなら何もしない。実処理は scripts/video/inspect-worker.ts が行う）
+  // 機械検品ジョブ登録。次のどちらかがある案件だけ対象にする。
+  //   a) AI動画生成パイプライン(video_jobs)の正解データ
+  //   b) 完成見本の動画（task_materials kind=sample）。SCENE案件はこちら。
+  // 該当なしなら何もしない。実処理は scripts/video/inspect-worker.ts が行う。
   // video_jobs / submission_inspections は職員のみRLSのため、就労者セッションの
   // createClient() では読み書きできない。管理クライアントで最小限の範囲だけ操作する。
   try {
     const admin = createAdminClient();
-    const { data: videoJob, error: vjErr } = await admin
-      .from("video_jobs")
-      .select("id")
-      .eq("task_id", assignment.task_id)
-      .not("answer_data", "is", null)
-      .limit(1)
-      .maybeSingle();
-    if (vjErr) throw vjErr;
-
-    if (videoJob) {
+    const inspectable = await isInspectableTask(admin, assignment.task_id);
+    if (inspectable) {
       const { error: insErr } = await admin.from("submission_inspections").insert({
         submission_id: submission.id,
         status: "pending",
       });
       if (insErr) throw insErr;
     } else {
-      // SCENE系案件など、正解データが video_jobs に無い案件は見本との自動照合ができない。
+      // 見本も正解データも無い案件（実案件の配布など）は自動照合ができない。
       // 職員が /staff/reviews で目視レビューする運用になるため、無言で飛ばさずに記録する。
       console.info(
-        `[submit] 正解データ(video_jobs.answer_data)が無いため機械検品をスキップ: task=${assignment.task_id}`,
+        `[submit] 完成見本も正解データも無いため機械検品をスキップ: task=${assignment.task_id}`,
       );
     }
   } catch (err) {

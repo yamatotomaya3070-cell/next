@@ -19,6 +19,11 @@ export interface CheckItem {
   status: CheckStatus;
   expected: string;
   actual: string;
+  /**
+   * 利用者にそのまま見せる、やさしい日本語の説明（fail のときの差し戻し理由）。
+   * 無ければ「{label}が見本と違います（あなたの動画: actual / 見本: expected）」で組み立てる。
+   */
+  message?: string;
 }
 
 export interface CheckResult {

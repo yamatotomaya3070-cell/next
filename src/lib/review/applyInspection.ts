@@ -143,7 +143,8 @@ export async function applyInspectionResult(
 
   // 下書きが無い（提出時に失敗した）場合は、検品結果込みで下書きを作り直す
   if (!active) {
-    const created = await createAiReview(submissionId);
+    // 検品ジョブはまだ「処理中」で DB から結果を読めないため、結果を直接渡す
+    const created = await createAiReview(submissionId, { checkResult });
     return {
       applied: true,
       autoReturned: created.autoReturned,

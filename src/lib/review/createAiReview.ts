@@ -35,6 +35,11 @@ export async function createAiReview(
      * あることを確認してから処理する（就労者セッションから呼ぶ場合は必ず渡す）。
      */
     expectAssignmentId?: string;
+    /**
+     * 機械検品の結果。検品ワーカーが完了処理の中から呼ぶときは、DB 上のジョブがまだ
+     * 「処理中」で読めないため、ここで直接渡す。未指定なら DB の完了済み結果を使う。
+     */
+    checkResult?: CheckResult | null;
   },
 ): Promise<CreateAiReviewResult> {
   const admin = createAdminClient();
@@ -81,9 +86,13 @@ export async function createAiReview(
       .maybeSingle<{ status: string; check_result: CheckResult | null }>(),
   ]);
 
-  // 検品が終わっている場合だけ、その結果を差し戻し判定に使う
+  // 検品が終わっている場合だけ、その結果を差し戻し判定に使う（呼び出し元から渡されていればそれを優先）
   const checkResult =
-    inspection?.status === "completed" ? (inspection.check_result ?? null) : null;
+    options?.checkResult !== undefined
+      ? options.checkResult
+      : inspection?.status === "completed"
+        ? (inspection.check_result ?? null)
+        : null;
 
   let grade: GradeResult | null = null;
   try {

@@ -100,3 +100,16 @@ describe("checkTelops", () => {
     expect(checkTelops([]).map((c) => c.status)).toEqual(["unknown", "unknown"]);
   });
 });
+
+describe("telopSimilarity の先頭一致", () => {
+  test("見本側で「…」と省略された長い字幕は、十分な長さの先頭が一致すれば同じ文", () => {
+    const expected = "はい、これは、税金の計算のもとになる所得から、iDeCoの掛金分を引いてくれる、という意味です。例えば年収500万円の人が毎月2万円を積み立てたら、年間で約3万6千円も税金が軽くなるんですよ！";
+    const ocr = "はい、これは、税金の計算のもとになる所得から、iDeCoの掛金分を引いてくれる、という意味です。例えば年収500万円の人が毎月2万円を積み立てたら、年間…";
+    expect(telopSimilarity(expected, ocr)).toBe(1);
+  });
+
+  test("短い文どうしや、先頭が同じだけの短い読み取りには適用しない", () => {
+    expect(telopSimilarity("はい、これは税金の話です", "はい")).toBeLessThan(0.5);
+    expect(telopSimilarity("はい。", "はい、これは、税金の計算のもとになる所得から")).toBeLessThan(0.5);
+  });
+});

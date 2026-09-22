@@ -4,7 +4,13 @@
  * 構成照合（structureCheck）で分かった「提出動画の中で各セリフが始まる秒」を使い、
  * セリフの途中2か所で画面下部を切り出して OCR し、作業指示一覧の文と比べる。
  */
-import { checkTelops, parseTelopExpectations, type TelopObservation } from "../../src/lib/video/inspection/telop";
+import {
+  checkTelops,
+  parseTelopExpectations,
+  telopSimilarity,
+  TELOP_WRONG_SIMILARITY,
+  type TelopObservation,
+} from "../../src/lib/video/inspection/telop";
 import type { CheckItem } from "../../src/lib/video/inspection/types";
 import type { VoiceMatchDetail } from "./structureCheck";
 import { extractSubtitleStrip, isOcrAvailable, ocrSubtitleStrips } from "./telopOcr";
@@ -79,8 +85,11 @@ export async function runTelopCheck(input: TelopCheckInput): Promise<TelopCheckR
   }
   const ocrTexts: string[][] = firstTexts.map((t) => [t]);
 
-  // 2回目: 文字が無かったセリフだけ、前後の位置でもう2枚撮って確かめる（字幕の出入りの瞬間を避ける）
-  const retryIdx = targets.map((_, i) => i).filter((i) => firstTexts[i].trim().length === 0);
+  // 2回目: 文字が無かったセリフと、指示の文と明らかに違う読みになったセリフだけ、
+  // 前後の位置でもう2枚撮って確かめる（字幕の出入りの瞬間や、短いセリフで隣の字幕を読んだ場合を避ける）
+  const retryIdx = targets
+    .map((_, i) => i)
+    .filter((i) => firstTexts[i].trim().length === 0 || telopSimilarity(targets[i].expected, firstTexts[i]) < TELOP_WRONG_SIMILARITY);
   if (retryIdx.length > 0) {
     const strips: Buffer[] = [];
     for (const i of retryIdx) for (const pos of RETRY_POSITIONS) strips.push(stripAt(targets[i], pos));

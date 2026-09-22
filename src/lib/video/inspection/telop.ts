@@ -147,12 +147,24 @@ function levenshtein(a: string, b: string): number {
   return prev[b.length];
 }
 
-/** 0..1。1 なら同じ文 */
+/** 片方がもう片方の先頭部分と一致していれば「同じ文」とみなす最短の長さと割合 */
+const PREFIX_MATCH_MIN_CHARS = 12;
+const PREFIX_MATCH_MIN_RATIO = 0.5;
+
+/**
+ * 0..1。1 なら同じ文。
+ * 長い字幕は見本の側で「…」と省略して表示されることがあるので、
+ * 十分な長さの先頭部分が一致していれば同じ文として扱う。
+ */
 export function telopSimilarity(expected: string, actual: string): number {
   const a = normalizeTelop(expected);
   const b = normalizeTelop(actual);
   if (a.length === 0 && b.length === 0) return 1;
   const max = Math.max(a.length, b.length);
+  const min = Math.min(a.length, b.length);
+  if (min >= PREFIX_MATCH_MIN_CHARS && min >= max * PREFIX_MATCH_MIN_RATIO && (a.startsWith(b) || b.startsWith(a))) {
+    return 1;
+  }
   return 1 - levenshtein(a, b) / max;
 }
 

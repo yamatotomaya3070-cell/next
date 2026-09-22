@@ -459,3 +459,19 @@ PC依存:
 - smoke の `--cases` の値が提出動画名として拾われるバグを修正（args から除外）
 - 1ケースの処理時間: 約300〜320秒（構成照合＋OCR＋映像照合）
 - vitest 195件・tsc・eslint 通過。段階4をコミット（未push）
+- 5af8aca（段階4）を origin/main へ push。職員PCは「更新（職員用）.bat」で検品ワーカーに映像照合が入る
+- 本番ビルド失敗と復旧: 5af8aca の Vercel ビルドが ERROR。原因は、別作業（職員ダッシュボード整理、09-21 16時台・未コミット）で index に載っていた「src/app/staff/TraineeProgressTable.tsx の削除」「ExportReportButton.tsx → reports/ への移動」が、段階4のコミットに紛れ込んだこと（コミット済みの staff/page.tsx はまだ両方を import している）。2ファイルを 9c7995a の内容に戻すコミット 20202af を push → Vercel READY（15:14）。ローカルの未コミット作業（page.tsx 分割・ActionStrip/TodoList/TraineeRoster/reports/page.tsx・src/lib/staff）はそのまま残してある
+- 教訓: この作業ツリーは他の作業者（Codex等）が index に変更を残すことがある。コミット前に `git diff --cached --stat` を見るか、`git commit -- <paths>` でパスを限定する
+- 修正後コード（20202af）で `--cases 6,7` を再実行（scripts/output/smoke-frames-cases67-final.log）: ①見本そのまま=全OK ⑥場面差し替え=「場面の映像 NG（S06）」 ⑦字幕10%上=「字幕の位置・大きさ NG（24本中24本）」。3ケースとも字幕位置は 24/24 読み取りで「??」なし。これで7ケースすべて最終コードで確認済み
+
+## 2026-09-22 午後：提出後AI検品の段階5（わざとミス入り提出セットの自動生成と精度測定）
+
+- `scripts/video/localInspection.ts`（新規）: パッケージフォルダ＋提出mp4で本番と同じ全項目（実測比較・構成照合・字幕照合・映像照合）をDB無しで実行。スモークと精度測定の共通部分。作業指示一覧はフォルダ直下CSV→ZIP内CSV→app_task.json の順に探す。job_xxx/package 形式の名前も扱う
+- `scripts/video/variants.ts`（新規）: 見本から「ミスの種類が分かっている提出動画」を ffmpeg で生成。各変種に expectedFails（NGになるべき項目）と allowedExtra（出ても誤検知に数えない項目）を持たせる。既存5種に加え、低画質再エンコード／解像度854x480／音量-12dB／オープニング欠落／エンディング欠落／4秒の無音挿入／順番入れ替え／複合（セリフ抜け＋字幕ずれ）を追加。concat の継ぎ目で形式を揃えるため scale/fps/format と aformat で正規化
+- `src/lib/video/inspection/accuracy.ts`（新規・テスト5件）: 項目別の 検出／誤検知／見逃し／職員確認(NGのはず・OKのはず) と、提出単位の差し戻し判定（差し戻すべき／正しく／誤って／見逃し）を集計し Markdown に描画
+- `scripts/video/measure-inspection-accuracy.ts`（新規）: CLI。変種ごとの結果を scripts/output/accuracy/<pkg>/<variant>.json に保存し、再実行時は済んだ分を飛ばす（このPCはメモリ不足で長時間処理が止められるため）。1本の失敗で全体を止めず記録して続行。`--variants` `--force` `--report-only`
+- smoke-structure-check.ts を共通モジュール利用に書き直し（`--cases voice_cut,telop_moved` のようにIDで絞る）
+- 計測（新NISA、14本、合計約76分、2回に分けて実行）: 提出単位 差し戻すべき12／正しく12／誤って0／見逃し0。項目別も全項目で誤検知0・見逃し0・職員確認行き0。報告書を docs/提出後AI検品_精度測定_2026-09-22.md に保存
+- 期待値側の修正: 「エンディングを落とす」は末尾7.43秒を切る作りだったが、新NISAの見本は最後のセリフが末尾まで続きエンディング区間が無く、セリフが切れて voice_present がNGになった（検出は正しい）。変種を「最後のセリフの後ろに2秒以上あるときだけ、その余白を落とす」に変更し、オープニング欠落も最初のセリフの前に余白があるときだけ作るようにした。新NISAではエンディング欠落は生成されない
+- vitest 200件・tsc・eslint 通過
+- 未実施: 他パッケージ（poc/scene/out/job_69577ea6=iDeCo、job_0837b376・job_bfcd66fb=相続税）での計測。`npx tsx scripts/video/measure-inspection-accuracy.ts poc/scene/out/job_69577ea6-edf5-4249-86a1-d1d26e906545/package` のように package フォルダを渡す

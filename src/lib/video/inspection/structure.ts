@@ -19,7 +19,15 @@ export interface VoicePlacement {
   sampleStartSec: number | null;
   /** 提出動画の中で始まる秒（複数なら重複使用）。昇順 */
   submissionStarts: number[];
+  /** セリフ音声の長さ（秒）。短いセリフの見つけ損ないを差し戻し理由にしないために使う */
+  durationSec?: number;
 }
+
+/**
+ * これ以下の長さのセリフ（「はい。」など）は音声指紋の手がかりが少なく、
+ * 再エンコード後に見つけ損なうことがある。見つからなくても差し戻さず職員確認にする
+ */
+export const SHORT_VOICE_SEC = 1.5;
 
 /** 前のセリフからの間隔が、見本とこれ以上ズレていたら NG（秒） */
 export const VOICE_GAP_TOLERANCE_SEC = 1.5;
@@ -75,18 +83,33 @@ export function checkVoiceStructure(voices: VoicePlacement[]): CheckItem[] {
 type Known = VoicePlacement & { sampleStartSec: number };
 
 function checkPresent(known: Known[]): CheckItem {
-  const missing = known.filter((v) => v.submissionStarts.length === 0).map((v) => v.name);
+  const missingVoices = known.filter((v) => v.submissionStarts.length === 0);
+  const missing = missingVoices.map((v) => v.name);
   const found = known.length - missing.length;
+  const key = "voice_present";
+  const label = "セリフの入れ忘れ";
+  const expected = `${known.length}本すべて`;
+  if (missing.length === 0) {
+    return { key, label, status: "pass", expected, actual: `${found}本すべて入っています` };
+  }
+  // 短いセリフしか見つけ損なっていないなら、聞き取りの限界の可能性があるので差し戻さず職員が確かめる
+  const onlyShort = missingVoices.every((v) => v.durationSec !== undefined && v.durationSec <= SHORT_VOICE_SEC);
+  if (onlyShort) {
+    return {
+      key,
+      label,
+      status: "unknown",
+      expected,
+      actual: `${found}本（短いセリフを確認できず: ${listNames(missing)}。入っているか職員が確かめてください）`,
+    };
+  }
   return {
-    key: "voice_present",
-    label: "セリフの入れ忘れ",
-    status: missing.length === 0 ? "pass" : "fail",
-    expected: `${known.length}本すべて`,
-    actual: missing.length === 0 ? `${found}本すべて入っています` : `${found}本（足りない: ${listNames(missing)}）`,
-    message:
-      missing.length === 0
-        ? undefined
-        : `セリフの音声が${missing.length}本入っていません（${listNames(missing)}）。「素材」フォルダの音声をもう一度並べて、聞こえるか確かめてください。`,
+    key,
+    label,
+    status: "fail",
+    expected,
+    actual: `${found}本（足りない: ${listNames(missing)}）`,
+    message: `セリフの音声が${missing.length}本入っていません（${listNames(missing)}）。「素材」フォルダの音声をもう一度並べて、聞こえるか確かめてください。`,
   };
 }
 

@@ -91,3 +91,25 @@ describe("表示用ヘルパー", () => {
     expect(formatSec(42)).toBe("42秒");
   });
 });
+
+describe("短いセリフの見つけ損ない", () => {
+  test("1.5秒以下のセリフだけが見つからないなら、入れ忘れは fail でなく unknown（職員確認）", () => {
+    const voices: VoicePlacement[] = [
+      { name: "S01_01_ハル.wav", sampleStartSec: 1, submissionStarts: [1], durationSec: 4 },
+      { name: "S01_02_ミナ先生.wav", sampleStartSec: 6, submissionStarts: [], durationSec: 1.0 },
+      { name: "S01_03_ハル.wav", sampleStartSec: 8, submissionStarts: [8], durationSec: 3 },
+    ];
+    const present = checkVoiceStructure(voices).find((c) => c.key === "voice_present")!;
+    expect(present.status).toBe("unknown");
+    expect(present.message).toBeUndefined();
+    expect(present.actual).toContain("S01_02（ミナ先生）");
+  });
+
+  test("長いセリフが1本でも見つからなければ fail のまま", () => {
+    const voices: VoicePlacement[] = [
+      { name: "S01_01_ハル.wav", sampleStartSec: 1, submissionStarts: [], durationSec: 4 },
+      { name: "S01_02_ミナ先生.wav", sampleStartSec: 6, submissionStarts: [], durationSec: 1.0 },
+    ];
+    expect(checkVoiceStructure(voices).find((c) => c.key === "voice_present")!.status).toBe("fail");
+  });
+});

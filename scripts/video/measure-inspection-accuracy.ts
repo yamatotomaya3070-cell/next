@@ -75,7 +75,7 @@ async function inspectVariant(
     title: spec.title,
     expectedFails: spec.expectedFails,
     allowedExtra: spec.allowedExtra,
-    checks: result.checks.map((c) => ({ key: c.key, label: c.label, status: c.status })),
+    checks: result.checks.map((c) => ({ key: c.key, label: c.label, status: c.status, actual: c.actual })),
     elapsedSec: result.elapsedSec,
     ...extra,
   };
@@ -105,7 +105,7 @@ async function measurePackage(pkgDir: string, variants: Set<string> | null, forc
       title: "見本そのもの",
       expectedFails: [],
       allowedExtra: [],
-      checks: result.checks.map((c) => ({ key: c.key, label: c.label, status: c.status })),
+      checks: result.checks.map((c) => ({ key: c.key, label: c.label, status: c.status, actual: c.actual })),
       elapsedSec: result.elapsedSec,
       voices: result.structure.details,
       sampleDurationSec: pkg.sampleProbe.durationSec,

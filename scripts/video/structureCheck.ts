@@ -75,6 +75,7 @@ export function runStructureCheck(input: StructureCheckInput): StructureCheckRes
     name: d.name,
     sampleStartSec: d.inSample?.startSec ?? null,
     submissionStarts: d.inSubmission.map((m) => m.startSec).sort((a, b) => a - b),
+    durationSec: d.durationSec,
   }));
 
   return { checks: checkVoiceStructure(placements), placements, details };

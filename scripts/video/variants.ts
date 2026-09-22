@@ -190,6 +190,12 @@ interface PlacedVoice {
   end: number;
 }
 
+/** 2つのセリフの間で切る位置。中間を基本に、後ろのセリフの 0.05〜1.0 秒前に収める */
+function boundaryBetween(prevEnd: number, nextStart: number): number {
+  const midpoint = (prevEnd + nextStart) / 2;
+  return Math.min(nextStart - 0.05, Math.max(nextStart - 1.0, midpoint));
+}
+
 function placedVoices(ctx: VariantContext): PlacedVoice[] {
   return ctx.voices
     .filter((v) => v.inSample)
@@ -227,9 +233,12 @@ export function buildVariantSpecs(ctx: VariantContext): VariantSpec[] {
   const mid = Math.floor(placed.length / 2);
   const target = placed[mid];
   const next = placed[mid + 1];
-  // 加工対象の区間: セリフの少し前から、次のセリフの手前まで
-  const cutStart = Math.max(0, target.start - 0.1);
-  const cutEnd = next.start - 0.2;
+  const prev = placed[mid - 1];
+  // 加工対象の区間: 前のセリフとの中間から、次のセリフとの中間まで
+  // （音声指紋の開始位置は数十ms ずれることがあるので、セリフの直前で切るとセリフの頭を削って
+  //   「入れ忘れ」の誤検知になる。隣のセリフとの中間で切れば、どちらのセリフも削らない）
+  const cutStart = Math.max(0, boundaryBetween(prev?.end ?? 0, target.start));
+  const cutEnd = boundaryBetween(target.end, next.start);
   const targetLabel = target.name.replace(/\.wav$/i, "");
 
   specs.push(
@@ -253,7 +262,7 @@ export function buildVariantSpecs(ctx: VariantContext): VariantSpec[] {
 
   // 順番入れ替え: 加工対象と次のセリフ（同じ場面が望ましいが、無ければ隣どうし）
   const after = placed[mid + 2];
-  const bEnd = after ? after.start - 0.2 : next.end + 0.3;
+  const bEnd = after ? boundaryBetween(next.end, after.start) : next.end + 0.3;
   if (bEnd > cutEnd + 0.5) {
     specs.push({
       id: "voice_swap",

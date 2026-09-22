@@ -12,6 +12,8 @@ export interface OutcomeCheck {
   key: string;
   label: string;
   status: CheckStatus;
+  /** 実測の説明（診断用。集計には使わない） */
+  actual?: string;
 }
 
 export interface VariantOutcome {

@@ -7,12 +7,15 @@
  *   3. セリフを1本重ねた提出                  → 「セリフの重複」が fail になるか
  *   4. あるセリフの字幕を黒く塗りつぶした提出 → 「字幕の入れ忘れ」が fail になるか
  *   5. あるセリフの字幕を別の文にした提出     → 「字幕の文」が fail になるか
+ *   6. ある場面の映像を別の場面に差し替えた提出 → 「場面の映像」が fail になるか
+ *   7. 字幕を全体的に上へ移した提出           → 「字幕の位置・大きさ」が fail になるか
  * を確かめる。提出動画は ffmpeg で見本から作る（再エンコードも通る）。
  *
  * 使い方:
  *   npx tsx scripts/video/smoke-structure-check.ts <パッケージフォルダ> [提出動画.mp4]
  *   提出動画を渡すと、その1本だけ照合して結果を表示する。
  *   --skip-variants を付けると 1 だけ（加工版を作らない）。
+ *   --cases 6,7 のように付けると、1 と指定した加工ケースだけを実行する。
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -20,6 +23,7 @@ import { loadEnvLocal } from "./env";
 import { run, probeStreams, probeVolumeDb } from "./exec";
 import { runStructureCheck, type StructureCheckResult } from "./structureCheck";
 import { runTelopCheck, type TelopCheckResult } from "./telopCheck";
+import { runFrameCheck, SUBTITLE_BAND_RATIO, type FrameCheckResult } from "./frameCheck";
 import { readZipEntries } from "./unzip";
 import { compareProbeToSample } from "../../src/lib/video/inspection/compareSample";
 import { computeAutoScore } from "../../src/lib/video/inspection/score";
@@ -68,6 +72,26 @@ function summarizeTelops(result: TelopCheckResult) {
   }
 }
 
+function summarizeFrames(result: FrameCheckResult) {
+  if (result.skippedReason) {
+    console.log(`  映像照合: ${result.skippedReason}`);
+    return;
+  }
+  const byKind = (kind: string) => result.frames.filter((f) => f.kind === kind).map((f) => f.similarity);
+  const min = (xs: number[]) => (xs.length ? Math.min(...xs).toFixed(2) : "-");
+  console.log(
+    `  映像照合: アンカー ${result.frames.length}か所（最低類似度 オープニング ${min(byKind("opening"))} / エンディング ${min(byKind("ending"))} / 場面 ${min(byKind("scene"))}）`,
+  );
+  const readable = result.styles.filter((s) => s.sample && s.submission);
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  console.log(`  字幕位置: ${result.styles.length}本中 ${readable.length}本で読み取り`);
+  for (const s of readable.slice(0, 3)) {
+    console.log(
+      `    例: ${s.voiceFile} 見本 ${pct(s.sample!.top)}〜${pct(s.sample!.bottom)} / 提出 ${pct(s.submission!.top)}〜${pct(s.submission!.bottom)}`,
+    );
+  }
+}
+
 function instructionTextOf(pkgDir: string, assetsZip: Buffer): string | null {
   const csv = readZipEntries(assetsZip, (n) => /(^|\/)作業指示一覧\.csv$/.test(n))[0];
   if (csv) return csv.data.toString("utf8");
@@ -111,9 +135,35 @@ function makeTelopWrongVariant(sampleAbs: string, out: string, start: number, en
   run("ffmpeg", ["-y", "-i", sampleAbs, "-vf", vf, ...ENCODE, out], cwd);
 }
 
+/** [start, end) の映像だけを、別の時刻 srcStart からの同じ長さの映像に差し替える（音声はそのまま。場面の素材の置き間違いを模す） */
+function makeSceneSwapVariant(sampleAbs: string, out: string, start: number, end: number, srcStart: number, cwd: string) {
+  const len = end - start;
+  const f =
+    `[0:v]trim=0:${start},setpts=PTS-STARTPTS[v0];` +
+    `[0:v]trim=${srcStart}:${srcStart + len},setpts=PTS-STARTPTS[v1];` +
+    `[0:v]trim=${end},setpts=PTS-STARTPTS[v2];` +
+    `[v0][v1][v2]concat=n=3:v=1:a=0[v]`;
+  run("ffmpeg", ["-y", "-i", sampleAbs, "-filter_complex", f, "-map", "[v]", "-map", "0:a", ...ENCODE, out], cwd);
+}
+
+/** 動画全体で、字幕帯を上に shiftRatio（画面高さの割合）だけ移した動画を作る（字幕の位置違いを模す） */
+function makeTelopMoveVariant(sampleAbs: string, out: string, shiftRatio: number, cwd: string) {
+  const band = SUBTITLE_BAND_RATIO;
+  const f =
+    `[0:v]split=2[base][src];` +
+    `[src]crop=iw:ih*${band}:0:ih*${1 - band}[strip];` +
+    `[base]drawbox=x=0:y=ih*${1 - band}:w=iw:h=ih*${band}:color=black:t=fill[blank];` +
+    `[blank][strip]overlay=0:H*${1 - band - shiftRatio}[v]`;
+  run("ffmpeg", ["-y", "-i", sampleAbs, "-filter_complex", f, "-map", "[v]", "-map", "0:a", ...ENCODE, out], cwd);
+}
+
 async function main() {
-  const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const skipVariants = process.argv.includes("--skip-variants");
+  // --cases 6,7 のように加工ケースを絞れる（1 の見本そのものは常に実行する）
+  const casesArg = process.argv.includes("--cases") ? process.argv[process.argv.indexOf("--cases") + 1] : undefined;
+  const args = process.argv.slice(2).filter((a) => !a.startsWith("--") && a !== casesArg);
+  const wantedCases = casesArg ? new Set(casesArg.split(",").map(Number)) : null;
+  const wantCase = (n: number) => !wantedCases || wantedCases.has(n);
   const pkgDir = args[0];
   const submissionArg = args[1];
   if (!pkgDir) {
@@ -144,11 +194,26 @@ async function main() {
       voices: structure.details,
       voiceDurations: Object.fromEntries(structure.details.map((d) => [d.name, d.durationSec])),
     });
-    const probeChecks = compareProbeToSample(probeAll(submissionAbs, workdir), sampleProbe);
-    report(`${title}（${((Date.now() - started) / 1000).toFixed(1)}秒）`, [...probeChecks, ...structure.checks, ...telop.checks]);
+    const submissionProbe = probeAll(submissionAbs, workdir);
+    const probeChecks = compareProbeToSample(submissionProbe, sampleProbe);
+    const frames = await runFrameCheck({
+      workdir,
+      sampleFile: sampleAbs,
+      submissionFile: submissionAbs,
+      sampleDurationSec: sampleProbe.durationSec,
+      submissionDurationSec: submissionProbe.durationSec,
+      voices: structure.details,
+    });
+    report(`${title}（${((Date.now() - started) / 1000).toFixed(1)}秒）`, [
+      ...probeChecks,
+      ...structure.checks,
+      ...telop.checks,
+      ...frames.checks,
+    ]);
     summarizeMatches(structure);
     summarizeTelops(telop);
-    return { structure, telop };
+    summarizeFrames(frames);
+    return { structure, telop, frames };
   };
   const expectFail = (label: string, items: CheckItem[], key: string) => {
     const item = items.find((c) => c.key === key);
@@ -181,13 +246,15 @@ async function main() {
   const cutEnd = next.sampleStartSec! - 0.2; // 次のセリフの手前まで
   console.log(`\n加工対象: ${target.name}（見本の ${cutStart.toFixed(1)}〜${cutEnd.toFixed(1)}秒）`);
 
-  if (!process.argv.includes("--only-telop")) {
+  if (wantCase(2)) {
     // 2) そのセリフを切り落とす
     const cut = join(workdir, "02_missing.mp4");
     makeCutVariant(sampleAbs, cut, cutStart, cutEnd, workdir);
     const missing = await check(`2. ${target.name} を切り落とした提出`, cut);
     expectFail("セリフの入れ忘れ", missing.structure.checks, "voice_present");
+  }
 
+  if (wantCase(3)) {
     // 3) そのセリフを末尾にもう一度つなぐ
     const dup = join(workdir, "03_duplicate.mp4");
     makeDuplicateVariant(sampleAbs, dup, cutStart, cutEnd, workdir);
@@ -200,17 +267,48 @@ async function main() {
     return;
   }
 
-  // 4) そのセリフの字幕を塗りつぶす
-  const telopMissing = join(workdir, "04_telop_missing.mp4");
-  makeTelopMissingVariant(sampleAbs, telopMissing, cutStart, cutEnd, workdir);
-  const tm = await check(`4. ${target.name} の字幕を塗りつぶした提出`, telopMissing);
-  expectFail("字幕の入れ忘れ", tm.telop.checks, "telop_present");
+  if (wantCase(4)) {
+    // 4) そのセリフの字幕を塗りつぶす
+    const telopMissing = join(workdir, "04_telop_missing.mp4");
+    makeTelopMissingVariant(sampleAbs, telopMissing, cutStart, cutEnd, workdir);
+    const tm = await check(`4. ${target.name} の字幕を塗りつぶした提出`, telopMissing);
+    expectFail("字幕の入れ忘れ", tm.telop.checks, "telop_present");
+  }
 
-  // 5) そのセリフの字幕を別の文にする
-  const telopWrong = join(workdir, "05_telop_wrong.mp4");
-  makeTelopWrongVariant(sampleAbs, telopWrong, cutStart, cutEnd, "これは別のセリフの字幕です", workdir);
-  const tw = await check(`5. ${target.name} の字幕を別の文にした提出`, telopWrong);
-  expectFail("字幕の文", tw.telop.checks, "telop_text");
+  if (wantCase(5)) {
+    // 5) そのセリフの字幕を別の文にする
+    const telopWrong = join(workdir, "05_telop_wrong.mp4");
+    makeTelopWrongVariant(sampleAbs, telopWrong, cutStart, cutEnd, "これは別のセリフの字幕です", workdir);
+    const tw = await check(`5. ${target.name} の字幕を別の文にした提出`, telopWrong);
+    expectFail("字幕の文", tw.telop.checks, "telop_text");
+  }
+
+  // 6) 加工対象のセリフが属する場面の映像を、別の時刻の映像に差し替える
+  const scene = /^(S\d{2})_/i.exec(target.name)?.[1]?.toUpperCase();
+  const sceneVoices = base.structure.details.filter((d) => d.inSample && sceneOf(d.name) === scene);
+  if (wantCase(6) && scene && sceneVoices.length > 0) {
+    const spanStart = Math.max(0, Math.min(...sceneVoices.map((d) => d.inSample!.startSec)) - 0.5);
+    const spanEnd = Math.max(...sceneVoices.map((d) => d.inSample!.startSec + d.durationSec)) + 0.5;
+    const len = spanEnd - spanStart;
+    const srcStart = spanStart - len - 30 >= 0 ? spanStart - len - 30 : spanEnd + 30;
+    const swapped = join(workdir, "06_scene_swapped.mp4");
+    makeSceneSwapVariant(sampleAbs, swapped, spanStart, spanEnd, srcStart, workdir);
+    const sw = await check(`6. 場面 ${scene}（${spanStart.toFixed(1)}〜${spanEnd.toFixed(1)}秒）の映像を別の場面に差し替えた提出`, swapped);
+    expectFail("場面の映像", sw.frames.checks, "frame_scene");
+  }
+
+  if (wantCase(7)) {
+    // 7) 字幕を全体的に上へ 10% 移す
+    const moved = join(workdir, "07_telop_moved.mp4");
+    makeTelopMoveVariant(sampleAbs, moved, 0.1, workdir);
+    const mv = await check("7. 字幕を画面の10%分上に移した提出", moved);
+    expectFail("字幕の位置・大きさ", mv.frames.checks, "telop_style");
+  }
+}
+
+/** S06_03_ミナ先生.wav → S06 */
+function sceneOf(voiceFile: string): string {
+  return /^(S\d{2})_/i.exec(voiceFile)?.[1]?.toUpperCase() ?? voiceFile;
 }
 
 main().catch((err) => {

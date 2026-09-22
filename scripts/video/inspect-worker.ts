@@ -27,6 +27,7 @@ import { getSupabaseAdmin } from "./supabaseAdmin";
 import { probeStreams, probeVolumeDb } from "./exec";
 import { runStructureCheck } from "./structureCheck";
 import { runTelopCheck } from "./telopCheck";
+import { runFrameCheck } from "./frameCheck";
 import { readZipEntries } from "./unzip";
 import { getTemplateConfig, VIDEO_TEMPLATE_TYPES } from "../../src/lib/video/templates";
 import { compareProbeToAnswer } from "../../src/lib/video/inspection/compare";
@@ -195,7 +196,8 @@ async function compareWithSample(
   workdir: string,
 ): Promise<CheckItem[]> {
   const sampleLocal = await downloadTo("materials", target.samplePath, "sample.mp4", workdir);
-  const checks = compareProbeToSample(probe, probeAll(sampleLocal, workdir));
+  const sampleProbe = probeAll(sampleLocal, workdir);
+  const checks = compareProbeToSample(probe, sampleProbe);
 
   if (!target.assetsPath) return checks;
   const assetsZip = await downloadBuffer("materials", target.assetsPath);
@@ -223,7 +225,19 @@ async function compareWithSample(
   if (telop.skippedReason) console.log(`  字幕照合: ${telop.skippedReason}`);
   else console.log(`  字幕照合: セリフ ${telop.observations.length}本の字幕を確認`);
 
-  return [...checks, ...structure.checks, ...telop.checks];
+  // 見本フレーム照合（オープニング／エンディング／場面の映像／字幕の位置・大きさ）
+  const frames = await runFrameCheck({
+    workdir,
+    sampleFile: sampleLocal,
+    submissionFile: submissionLocal,
+    sampleDurationSec: sampleProbe.durationSec,
+    submissionDurationSec: probe.durationSec,
+    voices: structure.details,
+  });
+  if (frames.skippedReason) console.log(`  映像照合: ${frames.skippedReason}`);
+  else console.log(`  映像照合: ${frames.frames.length}か所のフレームを見本と比較`);
+
+  return [...checks, ...structure.checks, ...telop.checks, ...frames.checks];
 }
 
 /** 支給素材ZIPの 作業指示一覧.csv（あれば） */

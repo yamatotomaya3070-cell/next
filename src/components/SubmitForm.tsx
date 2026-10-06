@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { submitWork, type ActionState } from "@/lib/actions/assignments";
 import type { SelfCheckItem } from "@/lib/types";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmDialog";
+import {
+  checkSubmissionSize,
+  describeUploadError,
+  storagePathName,
+} from "@/lib/submissions/uploadCheck";
 
 interface SubmitFormProps {
   assignmentId: string;
@@ -42,18 +47,21 @@ export function SubmitForm({
       setUploadError("提出するファイルを選んでください。");
       return;
     }
+    const sizeError = checkSubmissionSize(file.size);
+    if (sizeError) {
+      setUploadError(sizeError);
+      return;
+    }
     setIsUploading(true);
     try {
       const supabase = createClient();
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${userId}/${assignmentId}/${Date.now()}_${safeName}`;
+      const path = `${userId}/${assignmentId}/${Date.now()}_${storagePathName(file.name)}`;
       const { error } = await supabase.storage
         .from("submissions")
-        .upload(path, file, { upsert: false });
+        .upload(path, file, { upsert: false, contentType: file.type || "video/mp4" });
       if (error) {
-        setUploadError(
-          "アップロードに失敗しました。時間をおいてもう一度試してください。",
-        );
+        console.error("提出動画のアップロードに失敗しました:", error);
+        setUploadError(describeUploadError(error));
         return;
       }
       formData.set("file_path", path);
@@ -63,6 +71,10 @@ export function SubmitForm({
         localStorage.getItem(`work-minutes:${assignmentId}`) ?? "0",
       );
       formAction(formData);
+    } catch (err) {
+      // 例外のまま終わると「押しても何も起きない」ように見えるので、必ず理由を出す
+      console.error("提出動画のアップロード中に例外:", err);
+      setUploadError(describeUploadError(err));
     } finally {
       setIsUploading(false);
     }
@@ -130,7 +142,12 @@ export function SubmitForm({
         <input
           type="file"
           accept="video/*,.mp4,.mov,.avi"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const picked = e.target.files?.[0] ?? null;
+            setFile(picked);
+            // 大きすぎるファイルは、提出ボタンを押す前にその場で知らせる
+            setUploadError(picked ? checkSubmissionSize(picked.size) : null);
+          }}
           className="block w-full rounded-xl border-2 border-dashed border-line p-4 text-ink file:mr-4 file:min-h-11 file:rounded-xl file:border-0 file:bg-primary file:px-4 file:font-bold file:text-white"
         />
         {file && (
@@ -170,7 +187,11 @@ export function SubmitForm({
         disabled={busy}
         className="min-h-14 w-full rounded-[10px] bg-success text-lg font-bold text-white shadow-card transition hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {busy ? "提出しています…" : "提出する"}
+        {isUploading
+          ? "動画を送っています…（数分かかることがあります）"
+          : isPending
+            ? "提出しています…"
+            : "提出する"}
       </ConfirmSubmitButton>
     </form>
   );

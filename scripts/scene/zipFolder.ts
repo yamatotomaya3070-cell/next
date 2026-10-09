@@ -16,6 +16,8 @@ interface Entry {
 
 const UTF8_FLAG = 0x0800;
 const DEFLATE = 8;
+const UNIX_HOST = 3 << 8; // version made by の上位バイト（3 = Unix）
+const EXECUTABLE_FILE_MODE = 0o100755; // 通常ファイル + rwxr-xr-x
 
 function dosTime(d: Date): { time: number; date: number } {
   return {
@@ -72,7 +74,10 @@ export function zipPaths(baseDir: string, paths: string[], outFile: string): voi
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(20, 4); // version made by
+    // Mac のセットアップ（.command）はダブルクリックで動くよう、実行できる印（Unix の 755）を付ける。
+    // 印が無いと Mac の展開で実行権が落ち、「アクセス権がない」と出て動かない
+    const isExecutable = /\.(command|sh)$/i.test(e.name);
+    central.writeUInt16LE(isExecutable ? UNIX_HOST | 20 : 20, 4); // version made by
     central.writeUInt16LE(20, 6); // version needed
     central.writeUInt16LE(UTF8_FLAG, 8);
     central.writeUInt16LE(DEFLATE, 10);
@@ -82,6 +87,7 @@ export function zipPaths(baseDir: string, paths: string[], outFile: string): voi
     central.writeUInt32LE(compressed.length, 20);
     central.writeUInt32LE(e.data.length, 24);
     central.writeUInt16LE(name.length, 28);
+    if (isExecutable) central.writeUInt32LE(EXECUTABLE_FILE_MODE * 0x10000, 38); // external attributes
     central.writeUInt32LE(offset, 42); // local header offset
     centrals.push(central, name);
 

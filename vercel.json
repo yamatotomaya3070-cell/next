@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/process-ingests",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-submissions",
+      "schedule": "0 18 * * *"
     }
   ]
 }

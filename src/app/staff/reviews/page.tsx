@@ -11,6 +11,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { SUBMISSION_RETENTION_DAYS } from "@/lib/submissions/retention";
 import {
   IconCheckCircle,
   IconCheckSquare,
@@ -163,6 +164,11 @@ export default async function ReviewsPage() {
                       src={videoUrl}
                     />
                   </div>
+                ) : !sub.file_path && sub.file_name ? (
+                  // retention.ts が保存期間を過ぎた動画を消し、file_path だけを空にしたもの
+                  <p className="mt-4 rounded-xl bg-page p-3 text-sm font-bold text-ink-soft">
+                    保存期間（確認から{SUBMISSION_RETENTION_DAYS}日）を過ぎたため、動画は削除しました。見直すときは利用者に再提出をお願いしてください。
+                  </p>
                 ) : (
                   <p className="mt-4 rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">
                     提出ファイルが見つかりません。利用者に再提出をお願いしてください。

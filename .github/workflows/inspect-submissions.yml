@@ -1,0 +1,66 @@
+# 提出動画の機械検品を GitHub Actions で動かす（常駐PCが無くても検品が止まらないように）。
+# 10分ごとに検品待ちがあるかだけを軽く確かめ、あるときだけ準備して scripts/video/inspect-worker.ts を流す。
+# 常駐PCの検品ワーカーと同時に動いても、submission_inspections のロックで二重処理はしない。
+#
+# 必要な Secrets（Settings → Secrets and variables → Actions）:
+#   NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GEMINI_API_KEY
+name: 提出動画の検品
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: inspect-submissions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: 検品待ちがあるか確かめる
+        id: pending
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Secrets（NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY）が未設定です"
+            exit 1
+          fi
+          # inspect-worker.ts の CLAIMABLE_FILTER と同じ条件（失敗はやり直し3回まで）
+          range=$(curl -sfS -o /dev/null -D - \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Prefer: count=exact" -H "Range: 0-0" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/submission_inspections?select=id&or=(status.in.(pending,probing,comparing),and(status.eq.failed,retry_count.lt.3))" \
+            | tr -d '\r' | awk -F/ 'tolower($0) ~ /^content-range:/ {print $2}')
+          echo "検品待ち: ${range:-0} 件"
+          echo "count=${range:-0}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.pending.outputs.count != '0'
+
+      - uses: actions/setup-node@v4
+        if: steps.pending.outputs.count != '0'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: ffmpeg を入れる
+        if: steps.pending.outputs.count != '0'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: 依存を入れる
+        if: steps.pending.outputs.count != '0'
+        run: npm ci --no-audit --no-fund
+
+      - name: 検品する
+        if: steps.pending.outputs.count != '0'
+        run: npx tsx scripts/video/inspect-worker.ts

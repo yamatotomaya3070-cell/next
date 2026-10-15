@@ -6,6 +6,7 @@ import type {
   SelfCheckItem,
   SubmissionInspection,
 } from "@/lib/types";
+import { TaskPageRefresher } from "@/components/TaskPageRefresher";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { EmptyState, ErrorState } from "@/components/ui/states";
@@ -115,6 +116,8 @@ export default async function ReviewsPage() {
 
   return (
     <PageContainer>
+      {/* 動画のリンク（1時間で切れる）を、開いたままでも切れる前に新しくする */}
+      <TaskPageRefresher awaitingResult={false} />
       <h1 className="flex items-center gap-2 text-xl font-bold text-ink">
         <IconCheckSquare className="text-primary" />
         提出レビュー

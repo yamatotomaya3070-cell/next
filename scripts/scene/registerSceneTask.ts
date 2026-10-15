@@ -16,7 +16,7 @@ export interface RegisterResult {
 // 就労者へ配る素材一式。完成見本.mp4 と内部JSON（素材一覧.json / app_task.json）は入れない。
 const SUPPLIED = ["素材", "作業指示一覧.csv", "はじめに.txt"];
 
-function zipSuppliedAssets(pkgDir: string): string {
+export function zipSuppliedAssets(pkgDir: string): string {
   const missing = SUPPLIED.filter((p) => !existsSync(`${pkgDir}/${p}`));
   if (missing.length > 0) throw new Error(`素材パッケージに足りないもの: ${missing.join(", ")}`);
   const zipFile = `${pkgDir}/支給素材一式.zip`;
@@ -85,4 +85,45 @@ export async function registerSceneTask(
   if (mi.error) throw new Error("materials insert: " + mi.error.message);
 
   return { taskId, artifacts: { sample_video: `${base}/sample.mp4`, assets_zip: `${base}/assets.zip` } };
+}
+
+/**
+ * すでに登録してある案件の完成見本・支給素材・依頼書・作業指示一覧を、作り直したパッケージで置き換える。
+ * 案件ID・割り当て・提出の記録はそのまま残す（作り方を直したあと、今ある案件にも反映するため）。
+ */
+export async function updateSceneTask(
+  sb: SupabaseClient,
+  opts: { pkgDir: string; taskId: string },
+): Promise<RegisterResult> {
+  const { pkgDir, taskId } = opts;
+  const check = verifyPackage(pkgDir);
+  console.log(`  関門OK: 並べた長さ ${check.totalFrames}f / 完成見本 ${check.sampleFrames}f / セリフ ${check.voices}本`);
+  const P = JSON.parse(readFileSync(`${pkgDir}/app_task.json`, "utf8"));
+
+  const { data: rows, error } = await sb
+    .from("task_materials")
+    .select("id, kind, title, media_url")
+    .eq("task_id", taskId);
+  if (error) throw new Error("materials select: " + error.message);
+  const find = (kind: string, title?: string) =>
+    (rows ?? []).find((r) => r.kind === kind && (title === undefined || r.title === title));
+  const sample = find("sample");
+  const assets = find("source_assets");
+  if (!sample?.media_url || !assets?.media_url) throw new Error(`案件 ${taskId} に完成見本か支給素材がありません`);
+
+  await upload(sb, sample.media_url, `${pkgDir}/完成見本.mp4`, "video/mp4");
+  await upload(sb, assets.media_url, zipSuppliedAssets(pkgDir), "application/zip");
+
+  const contents: [string, string, string][] = [
+    ["request_doc", "お仕事の依頼書", P.requestDoc],
+    ["revision_note", "作業指示一覧", P.timelineMd],
+    ["revision_note", "納品前チェックリスト", JSON.stringify(P.checklist)],
+  ];
+  for (const [kind, title, content] of contents) {
+    const row = find(kind, title);
+    if (!row) throw new Error(`案件 ${taskId} に「${title}」がありません`);
+    const u = await sb.from("task_materials").update({ content }).eq("id", row.id);
+    if (u.error) throw new Error(`${title} update: ${u.error.message}`);
+  }
+  return { taskId, artifacts: { sample_video: sample.media_url, assets_zip: assets.media_url } };
 }

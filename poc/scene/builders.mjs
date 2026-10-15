@@ -143,8 +143,10 @@ export function genericCard(scene) {
 
 // 会話用: audio[] を convScene.turns に
 export function convFrame(scene, sched, options) {
-  const turns = sched.map((x) => ({ speaker: x.line.speaker, start: x.start, dur: x.end - x.start + 0.05, text: x.line.text, emotion: x.line.emotion }));
-  const conv = { section: SECTION_JA[scene.section] || '会話', telop: (scene.visual.onScreenText || [])[0] ? { text: scene.visual.onScreenText[0], at: (turns[1]?.start ?? turns[0].start) + 0.3 } : null, turns };
+  // 字幕はセリフの音声と同じ長さだけ出す（就労者は字幕の長さを音声に合わせる）。
+  // 強調テロップは「2つ目のセリフの頭から場面の終わりまで」（作業指示一覧と同じ決まり）。
+  const turns = sched.map((x) => ({ speaker: x.line.speaker, start: x.start, dur: x.end - x.start, text: x.line.text, emotion: x.line.emotion }));
+  const conv = { section: SECTION_JA[scene.section] || '会話', telop: (scene.visual.onScreenText || [])[0] ? { text: scene.visual.onScreenText[0], at: turns[1]?.start ?? turns[0].start } : null, turns };
   return (t) => buildConversationSVG(conv, t, options);
 }
 

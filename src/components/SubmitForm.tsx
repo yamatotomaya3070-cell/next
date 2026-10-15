@@ -10,6 +10,8 @@ import {
   describeUploadError,
   storagePathName,
 } from "@/lib/submissions/uploadCheck";
+import { uploadWithProgress } from "@/lib/submissions/uploadWithProgress";
+import { workMinutesForSubmit } from "@/lib/work/workTime";
 
 interface SubmitFormProps {
   assignmentId: string;
@@ -35,6 +37,7 @@ export function SubmitForm({
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
 
   const selfCheck: SelfCheckItem[] = selfCheckItems.map((item, i) => ({
     item,
@@ -53,23 +56,20 @@ export function SubmitForm({
       return;
     }
     setIsUploading(true);
+    setUploadPercent(0);
     try {
       const supabase = createClient();
       const path = `${userId}/${assignmentId}/${Date.now()}_${storagePathName(file.name)}`;
-      const { error } = await supabase.storage
-        .from("submissions")
-        .upload(path, file, { upsert: false, contentType: file.type || "video/mp4" });
-      if (error) {
+      try {
+        await uploadWithProgress(supabase, "submissions", path, file, setUploadPercent);
+      } catch (error) {
         console.error("提出動画のアップロードに失敗しました:", error);
         setUploadError(describeUploadError(error));
         return;
       }
       formData.set("file_path", path);
       formData.set("file_name", file.name);
-      formData.set(
-        "work_minutes",
-        localStorage.getItem(`work-minutes:${assignmentId}`) ?? "0",
-      );
+      formData.set("work_minutes", String(workMinutesForSubmit(assignmentId)));
       formAction(formData);
     } catch (err) {
       // 例外のまま終わると「押しても何も起きない」ように見えるので、必ず理由を出す
@@ -91,6 +91,10 @@ export function SubmitForm({
         </p>
         <p className="mt-1 text-success">
           結果が届くまで、少し待っていてください。
+        </p>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">
+          結果は、職員の方の確認が終わると「レビュー結果」タブに届きます（直すところがはっきりしているときは、数分で届くこともあります）。
+          この画面を開いたままでも、届くと「レビュー結果が届きました」と出ます。もう一度提出する必要はありません。
         </p>
       </div>
     );
@@ -174,6 +178,28 @@ export function SubmitForm({
         />
       </div>
 
+      {isUploading && (
+        <div role="status" aria-live="polite" className="rounded-xl bg-primary-soft/50 p-4">
+          <p className="font-bold text-ink">
+            動画を送っています… {uploadPercent}%
+          </p>
+          <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-line">
+            <div
+              className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-300"
+              style={{ transform: `scaleX(${uploadPercent / 100})` }}
+            />
+          </div>
+          <p className="mt-2 text-[15px] text-ink-soft">
+            送り終わるまで、この画面を閉じないでください。
+          </p>
+        </div>
+      )}
+      {isPending && (
+        <p role="status" aria-live="polite" className="rounded-xl bg-primary-soft/50 p-4 font-bold text-ink">
+          送り終わりました。提出を記録しています…
+        </p>
+      )}
+
       {(uploadError || state.error) && (
         <p role="alert" className="rounded-xl bg-danger-soft p-4 font-bold text-danger">
           {uploadError ?? state.error}
@@ -188,7 +214,7 @@ export function SubmitForm({
         className="min-h-14 w-full rounded-[10px] bg-success text-lg font-bold text-white shadow-card transition hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isUploading
-          ? "動画を送っています…（数分かかることがあります）"
+          ? `動画を送っています… ${uploadPercent}%`
           : isPending
             ? "提出しています…"
             : "提出する"}

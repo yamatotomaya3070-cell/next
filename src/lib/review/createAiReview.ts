@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { plausibleWorkMinutes } from "@/lib/work/workTime";
 import { gradeSubmission } from "@/lib/ai";
 import { autoReturnSummary, decideAutoReturn } from "./autoReturn";
 import type { GradeResult } from "@/lib/ai";
@@ -101,7 +102,11 @@ export async function createAiReview(
       requestDoc: requestDocRow?.content ?? "",
       selfCheck,
       note: submission.note ?? null,
-      workMinutes: submission.work_minutes ?? null,
+      // 休憩の押し忘れなどで、ありえない長さになった時間は評価に使わない
+      workMinutes: plausibleWorkMinutes(
+        submission.work_minutes ?? null,
+        assignment.tasks?.estimated_minutes ?? null,
+      ),
       estimatedMinutes: assignment.tasks?.estimated_minutes ?? null,
       isResubmission: (submission.version ?? 1) > 1,
     });

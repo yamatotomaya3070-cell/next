@@ -1,5 +1,5 @@
 // 字幕・テロップ・セクション表示のオーバーレイ部品（合成レイヤの検証用）
-import { T, FONT, appear, clamp, text, roundRect, easePop } from './shared.mjs';
+import { T, FONT, clamp, text, roundRect } from './shared.mjs';
 
 const W = 1280, H = 720;
 
@@ -68,15 +68,19 @@ export function renderSubtitle(speaker, textStr, o = 1) {
 const TELOP_PAD_X = 56.5; // 文字の左右に付く余白
 const TELOP_H = 112;      // 帯の高さ
 const TELOP_CENTER_Y = 187;
+// 出かたは「8フレームでふわっと出る（フェードイン）」だけ。就労者が DaVinci のフェードハンドルを
+// 8フレーム引けば同じになる（教科書「強調テロップを入れる」の章）。拡大の動きは DaVinci で同じに
+// 作る手順が無いので付けない（見本は支給の道具と手順だけで再現できるものにする）。
+export const TELOP_FADE_FRAMES = 8;
 export function renderTelop(textStr, t, at = 0) {
   if (!textStr) return '';
-  const a = appear(t, at, 0.35);
-  if (a.o <= 0) return '';
-  const pop = clamp(easePop((t - at) / 0.4));
+  if (t < at) return '';
+  const o = clamp((t - at) / (TELOP_FADE_FRAMES / 24));
+  if (o <= 0) return '';
   const size = 46;
   const tw = estWidth(textStr, size);
   const pillW = tw + TELOP_PAD_X * 2, x = (W - pillW) / 2, y = TELOP_CENTER_Y - TELOP_H / 2;
-  return `<g opacity="${a.o}" transform="translate(${W / 2} ${TELOP_CENTER_Y}) scale(${0.9 + 0.1 * pop}) translate(${-W / 2} ${-TELOP_CENTER_Y})">
+  return `<g opacity="${o}">
     ${roundRect(x, y, pillW, TELOP_H, 20, T.accent)}
     ${text(W / 2, TELOP_CENTER_Y + 16, textStr, { anchor: 'middle', size, weight: 800, fill: '#08201d' })}
   </g>`;

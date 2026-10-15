@@ -21,6 +21,13 @@ export interface VoicePlacement {
   submissionStarts: number[];
   /** セリフ音声の長さ（秒）。短いセリフの見つけ損ないを差し戻し理由にしないために使う */
   durationSec?: number;
+  /** 完成見本の中で見つけたときのスコア。低いセリフは提出側でも見つけ損ないやすい */
+  sampleScore?: number;
+  /**
+   * 提出動画で「一致」の基準には届かないが、それらしい場所はあった（ゆるい基準での一致）。
+   * BGM が大きい・音声の端を切った・書き出しで音が変わった、などで基準を少し下回ったもの。
+   */
+  nearMiss?: { startSec: number; score: number; coverage: number };
 }
 
 /**
@@ -28,6 +35,51 @@ export interface VoicePlacement {
  * 再エンコード後に見つけ損なうことがある。見つからなくても差し戻さず職員確認にする
  */
 export const SHORT_VOICE_SEC = 1.5;
+
+/** 見本の中でもこれより低いスコアでしか見つからないセリフは、提出側で見つからなくても差し戻さない */
+export const WEAK_SAMPLE_SCORE = 0.5;
+
+/** ゆるい基準の候補を「入っている」とみなすのに要るカバー率（セリフのほぼ全体で一致している） */
+export const NEAR_MISS_MIN_COVERAGE = 0.85;
+/** ゆるい基準の候補が、前後のセリフから予想される位置とこれ以内なら「入っている」とみなす（秒） */
+export const NEAR_MISS_POSITION_TOLERANCE_SEC = 1.0;
+
+/**
+ * 基準に少し届かなかったセリフでも、ほぼ全体が一致し、前後のセリフ（確かに見つかったもの）から
+ * 予想される位置にあるなら、入っているとみなす。書き出しで音が少し変わると、全部のセリフの
+ * スコアが一様に下がり、基準ぎりぎりのセリフだけが「入っていない」と誤判定されていた（2026-10-09 の提出）。
+ */
+export function confirmNearMisses(voices: VoicePlacement[]): VoicePlacement[] {
+  const ordered = voices
+    .filter((v): v is VoicePlacement & { sampleStartSec: number } => v.sampleStartSec !== null)
+    .sort((a, b) => a.sampleStartSec - b.sampleStartSec);
+  const offsetOf = (v: VoicePlacement & { sampleStartSec: number }) =>
+    v.submissionStarts.length === 1 ? v.submissionStarts[0] - v.sampleStartSec : null;
+
+  const confirmed = new Map<string, number>();
+  ordered.forEach((v, i) => {
+    const near = v.nearMiss;
+    if (v.submissionStarts.length > 0 || !near || near.coverage < NEAR_MISS_MIN_COVERAGE) return;
+    const prev = ordered.slice(0, i).reverse().map(offsetOf).find((o) => o !== null) ?? null;
+    const next = ordered.slice(i + 1).map(offsetOf).find((o) => o !== null) ?? null;
+    const neighbors = [prev, next].filter((o): o is number => o !== null);
+    if (neighbors.length === 0) return;
+    const expected = v.sampleStartSec + neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
+    if (Math.abs(near.startSec - expected) <= NEAR_MISS_POSITION_TOLERANCE_SEC) confirmed.set(v.name, near.startSec);
+  });
+
+  return voices.map((v) => {
+    const start = confirmed.get(v.name);
+    return start === undefined ? v : { ...v, submissionStarts: [start] };
+  });
+}
+
+/** 見つけ損ないの理由になりうるもの（どれかに当たれば差し戻さず、職員が聞いて確かめる） */
+function isUncertainMiss(v: VoicePlacement): boolean {
+  if (v.durationSec !== undefined && v.durationSec <= SHORT_VOICE_SEC) return true;
+  if (v.sampleScore !== undefined && v.sampleScore < WEAK_SAMPLE_SCORE) return true;
+  return v.nearMiss !== undefined;
+}
 
 /** 前のセリフからの間隔が、見本とこれ以上ズレていたら NG（秒） */
 export const VOICE_GAP_TOLERANCE_SEC = 1.5;
@@ -51,7 +103,8 @@ function listNames(names: string[], max = 5): string {
   return names.length > max ? `${shown} ほか${names.length - max}件` : shown;
 }
 
-export function checkVoiceStructure(voices: VoicePlacement[]): CheckItem[] {
+export function checkVoiceStructure(input: VoicePlacement[]): CheckItem[] {
+  const voices = confirmNearMisses(input);
   const known = voices
     .filter((v): v is VoicePlacement & { sampleStartSec: number } => v.sampleStartSec !== null)
     .sort((a, b) => a.sampleStartSec - b.sampleStartSec);
@@ -92,24 +145,27 @@ function checkPresent(known: Known[]): CheckItem {
   if (missing.length === 0) {
     return { key, label, status: "pass", expected, actual: `${found}本すべて入っています` };
   }
-  // 短いセリフしか見つけ損なっていないなら、聞き取りの限界の可能性があるので差し戻さず職員が確かめる
-  const onlyShort = missingVoices.every((v) => v.durationSec !== undefined && v.durationSec <= SHORT_VOICE_SEC);
-  if (onlyShort) {
+  // 自動の聞き取りで見つけ損なった可能性があるもの（短い・見本でも弱い・それらしい場所はある）は
+  // 「入っていない」と決めつけず、職員が聞いて確かめる。はっきり無いものだけを差し戻す
+  const certain = missingVoices.filter((v) => !isUncertainMiss(v)).map((v) => v.name);
+  const uncertain = missingVoices.filter(isUncertainMiss).map((v) => v.name);
+  if (certain.length === 0) {
     return {
       key,
       label,
       status: "unknown",
       expected,
-      actual: `${found}本（短いセリフを確認できず: ${listNames(missing)}。入っているか職員が確かめてください）`,
+      actual: `${found}本（自動では確認できず: ${listNames(uncertain)}。入っているか職員が聞いて確かめてください）`,
     };
   }
+  const also = uncertain.length > 0 ? `／確認できず: ${listNames(uncertain)}` : "";
   return {
     key,
     label,
     status: "fail",
     expected,
-    actual: `${found}本（足りない: ${listNames(missing)}）`,
-    message: `セリフの音声が${missing.length}本入っていません（${listNames(missing)}）。「素材」フォルダの音声をもう一度並べて、聞こえるか確かめてください。`,
+    actual: `${found}本（足りない: ${listNames(certain)}${also}）`,
+    message: `セリフの音声が${certain.length}本入っていません（${listNames(certain)}）。「素材」フォルダの音声をもう一度並べて、聞こえるか確かめてください。`,
   };
 }
 

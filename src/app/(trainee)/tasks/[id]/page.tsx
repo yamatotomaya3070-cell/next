@@ -31,6 +31,7 @@ import {
 import { formatDue } from "@/components/work/AssignmentCard";
 import { FeedbackView } from "./FeedbackView";
 import { WorkSteps } from "@/components/work/WorkSteps";
+import { TaskPageRefresher } from "@/components/TaskPageRefresher";
 import { getWorkSteps } from "@/lib/guide/workflow";
 import {
   pickChecklistItems,
@@ -39,6 +40,8 @@ import {
 } from "@/lib/tasks/pickMaterials";
 
 export const dynamic = "force-dynamic";
+// 提出のあと裏で行うAI採点（after）がこの時間まで動ける
+export const maxDuration = 300;
 
 export default async function TaskDetailPage({
   params,
@@ -214,7 +217,7 @@ export default async function TaskDetailPage({
           {instructionSheet?.content && (
             <SectionCard title="作業指示一覧">
               <p className="text-[15px] leading-relaxed text-ink-soft">
-                字幕に入れる文字と、強調テロップを入れる場面が書いてあります。字幕は、ここから文をコピーして貼ります。
+                字幕に入れる文、強調テロップを入れる場面、セリフを置く位置が書いてあります。字幕は、ここから文をコピーして貼ります。
               </p>
               <details className="group mt-3" id="instruction-sheet">
                 <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full border-2 border-primary/30 bg-primary-soft/40 px-4 text-[15px] font-bold text-primary transition hover:bg-primary-soft">
@@ -341,9 +344,16 @@ export default async function TaskDetailPage({
         />
       </div>
 
+      <TaskPageRefresher awaitingResult={awaitingResult} />
       <div className="mt-5">
         <TaskTabs
           tabs={tabs}
+          notice={{
+            tabId: "result",
+            count: feedbacks.length,
+            storageKey: `seen-feedback:${assignment.id}`,
+            message: "レビュー結果が届きました",
+          }}
           initialTab={
             assignment.status === "feedback" || feedbacks.length > 0
               ? "result"

@@ -37,6 +37,22 @@ describe("compareProbeToSample", () => {
     expect(byKey(compareProbeToSample(submission, SAMPLE)).duration).toBe("fail");
   });
 
+  test("尺の許容差は見本の長さに比例する（手で並べた数秒の差は通す）", () => {
+    // 372.4秒の2% = 約7.4秒。6秒ずれは通し、短い見本では最低2秒まで
+    expect(byKey(compareProbeToSample({ ...SAMPLE, durationSec: 366.4 }, SAMPLE)).duration).toBe("pass");
+    const short = { ...SAMPLE, durationSec: 60 };
+    expect(byKey(compareProbeToSample({ ...short, durationSec: 62.5 }, short)).duration).toBe("fail");
+    expect(byKey(compareProbeToSample({ ...short, durationSec: 61.5 }, short)).duration).toBe("pass");
+  });
+
+  test("尺が違うときは、短いか長いかと直し方を伝える", () => {
+    const shortItem = compareProbeToSample({ ...SAMPLE, durationSec: 350 }, SAMPLE).find((c) => c.key === "duration");
+    const longItem = compareProbeToSample({ ...SAMPLE, durationSec: 395 }, SAMPLE).find((c) => c.key === "duration");
+    expect(shortItem?.message).toContain("短く");
+    expect(shortItem?.message).toContain("空ける間");
+    expect(longItem?.message).toContain("長く");
+  });
+
   test("解像度が違うと fail、取得できないと unknown", () => {
     expect(byKey(compareProbeToSample({ ...SAMPLE, width: 1280, height: 720 }, SAMPLE)).resolution).toBe("fail");
     expect(byKey(compareProbeToSample({ ...SAMPLE, width: null, height: null }, SAMPLE)).resolution).toBe("unknown");

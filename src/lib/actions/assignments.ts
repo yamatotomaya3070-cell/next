@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireProfile, createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAiReview } from "@/lib/review/createAiReview";
@@ -67,6 +68,10 @@ export async function submitWork(
 
   if (!assignmentId) return { error: "提出先の課題が見つかりません。" };
   if (!filePath) return { error: "ファイルをアップロードしてください。" };
+  // 送ったファイルは自分のフォルダ（{利用者ID}/{割当ID}/）にあるはず。よその人のファイルを指させない
+  if (!filePath.startsWith(`${profile.id}/${assignmentId}/`)) {
+    return { error: "提出するファイルが見つかりません。もう一度ファイルをえらんで提出してください。" };
+  }
 
   // 割当の所有確認（課題名・依頼書は createAiReview 側で取得する）
   const { data: assignment, error: aErr } = await supabase
@@ -80,22 +85,25 @@ export async function submitWork(
   // 提出バージョン（件数ではなく最大versionから採る。過去の提出が消えても番号が衝突しない）
   const { data: previous } = await supabase
     .from("submissions")
-    .select("version, submitted_at")
+    .select("version, submitted_at, file_name")
     .eq("assignment_id", assignmentId)
     .order("version", { ascending: false })
     .limit(1)
-    .maybeSingle<{ version: number; submitted_at: string }>();
+    .maybeSingle<{ version: number; submitted_at: string; file_name: string | null }>();
   const version = (previous?.version ?? 0) + 1;
 
   // 連打・二重送信の防止。1回の提出ごとにAI採点（外部API）が走るため、
-  // 短時間の再提出は受け付けない。
+  // 短時間の再提出は新しい提出にしない。同じファイルの押し直しなら直前の提出は届いているので、
+  // エラーではなく「提出済み」として返す（「失敗した」と思って押し直した人を不安にさせない）。
+  // 別のファイル（直した動画）のときは、取りこぼさないよう待ってもらう。
   if (
     previous &&
     Date.now() - new Date(previous.submitted_at).getTime() < RESUBMIT_COOLDOWN_MS
   ) {
+    if (previous.file_name === fileName) return { error: null, success: true };
     return {
       error:
-        "さきほど提出したばかりです。1分ほど待ってから、もう一度提出してください。",
+        "さきほど提出したばかりです。直した動画を出すときは、1分ほど待ってから、もう一度提出してください。",
     };
   }
 
@@ -156,13 +164,17 @@ export async function submitWork(
   }
 
   // AIレビュー下書きの作成＋明確なNGの自動差し戻し。
+  // 外部APIで時間がかかるので、提出の返事を返したあとに裏で行う（待たせると「提出できたのか」
+  // 分からず押し直されるため）。結果は「レビュー結果」タブが自動で読み直して表示する。
   // 失敗しても提出自体は成立させる（提出物は /staff/reviews に
   // 「AIレビュー未実施」として必ず並び、職員が手動で再実行できる）。
-  try {
-    await createAiReview(submission.id, { expectAssignmentId: assignmentId });
-  } catch (err) {
-    console.error("AIレビューの作成に失敗しました（提出は完了しています）:", err);
-  }
+  after(async () => {
+    try {
+      await createAiReview(submission.id, { expectAssignmentId: assignmentId });
+    } catch (err) {
+      console.error("AIレビューの作成に失敗しました（提出は完了しています）:", err);
+    }
+  });
 
   revalidatePath(`/tasks/${assignmentId}`);
   revalidatePath("/home");

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { checkVoiceStructure, formatSec, voiceDisplayName, type VoicePlacement } from "./structure";
+import { checkVoiceStructure, confirmNearMisses, formatSec, voiceDisplayName, type VoicePlacement } from "./structure";
 
 /** 見本どおりに並んだ4本のセリフ（提出は全体が0.3秒だけ後ろにズレている想定） */
 function perfect(): VoicePlacement[] {
@@ -111,5 +111,77 @@ describe("短いセリフの見つけ損ない", () => {
       { name: "S01_02_ミナ先生.wav", sampleStartSec: 6, submissionStarts: [], durationSec: 1.0 },
     ];
     expect(checkVoiceStructure(voices).find((c) => c.key === "voice_present")!.status).toBe("fail");
+  });
+});
+
+describe("見つけ損ないの可能性があるセリフ", () => {
+  test("基準に少し届かないが、それらしい場所があるセリフは fail でなく unknown（職員確認）", () => {
+    const voices: VoicePlacement[] = [
+      { name: "S01_01_ハル.wav", sampleStartSec: 1, submissionStarts: [1], durationSec: 4, sampleScore: 1.2 },
+      {
+        name: "S01_02_ミナ先生.wav",
+        sampleStartSec: 6,
+        submissionStarts: [],
+        durationSec: 4,
+        sampleScore: 1.1,
+        nearMiss: { startSec: 6.1, score: 0.18, coverage: 0.4 },
+      },
+    ];
+    const present = checkVoiceStructure(voices).find((c) => c.key === "voice_present")!;
+    expect(present.status).toBe("unknown");
+    expect(present.actual).toContain("職員が聞いて確かめて");
+  });
+
+  test("見本の中でも弱くしか見つからないセリフは、提出で見つからなくても差し戻さない", () => {
+    const voices: VoicePlacement[] = [
+      { name: "S01_01_ハル.wav", sampleStartSec: 1, submissionStarts: [], durationSec: 4, sampleScore: 0.35 },
+    ];
+    expect(checkVoiceStructure(voices).find((c) => c.key === "voice_present")!.status).toBe("unknown");
+  });
+
+  test("はっきり無いセリフがあれば fail。差し戻しの文には、はっきり無いものだけを書く", () => {
+    const voices: VoicePlacement[] = [
+      { name: "S01_01_ハル.wav", sampleStartSec: 1, submissionStarts: [], durationSec: 4, sampleScore: 1.2 },
+      { name: "S01_02_ミナ先生.wav", sampleStartSec: 6, submissionStarts: [], durationSec: 1.0, sampleScore: 1.0 },
+    ];
+    const present = checkVoiceStructure(voices).find((c) => c.key === "voice_present")!;
+    expect(present.status).toBe("fail");
+    expect(present.message).toContain("S01_01（ハル）");
+    expect(present.message).not.toContain("S01_02");
+  });
+});
+
+describe("confirmNearMisses（基準ぎりぎりのセリフを位置で確かめる）", () => {
+  // 提出は見本より 0.3秒 早い位置に、すべてのセリフが入っている
+  const found = (name: string, sample: number): VoicePlacement => ({
+    name,
+    sampleStartSec: sample,
+    submissionStarts: [sample - 0.3],
+    durationSec: 5,
+    sampleScore: 0.6,
+  });
+  const near = (name: string, sample: number, start: number, coverage = 0.95): VoicePlacement => ({
+    name,
+    sampleStartSec: sample,
+    submissionStarts: [],
+    durationSec: 5,
+    sampleScore: 0.6,
+    nearMiss: { startSec: start, score: 0.22, coverage },
+  });
+
+  test("前後のセリフから予想される位置にあれば、入っているとみなして pass", () => {
+    const voices = [found("S01_01_ハル.wav", 1), near("S01_02_ミナ先生.wav", 8, 7.7), found("S01_03_ハル.wav", 15)];
+    expect(confirmNearMisses(voices)[1].submissionStarts).toEqual([7.7]);
+    expect(checkVoiceStructure(voices).find((c) => c.key === "voice_present")!.status).toBe("pass");
+  });
+
+  test("予想の位置から離れていたら、入っているとはみなさない", () => {
+    const voices = [found("S01_01_ハル.wav", 1), near("S01_02_ミナ先生.wav", 8, 11), found("S01_03_ハル.wav", 15)];
+    expect(confirmNearMisses(voices)[1].submissionStarts).toEqual([]);
+  });
+
+  test("一致している範囲が狭い候補は、位置が合っていても採らない", () => {
+    const voices = [found("S01_01_ハル.wav", 1), near("S01_02_ミナ先生.wav", 8, 7.7, 0.5), found("S01_03_ハル.wav", 15)];
+    expect(confirmNearMisses(voices)[1].submissionStarts).toEqual([]);
   });
 });

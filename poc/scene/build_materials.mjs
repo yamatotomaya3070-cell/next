@@ -1,7 +1,7 @@
 // VideoProject(data.json) → 就労者が DaVinci でフル編集するための「素材フォルダ」を書き出す。
 //   ・図解は overlay(テロップ/字幕/セクション)を外した no-telop の完成フレームPNG
 //   ・立ち絵/BGM/背景はコピー、音声は vox キャッシュ(シーン別・話者別)をコピー
-//   ・作業指示一覧.csv（利用者向け。順番中心で絶対タイムコードは出さない）と 素材一覧.json を出力
+//   ・作業指示一覧.csv（利用者向け。順番・空ける間・置く位置のタイムコード）と 素材一覧.json を出力
 //   使い方: node poc/scene/build_materials.mjs [project.json] [出力フォルダ]
 import sharp from 'sharp';
 import { mkdirSync, rmSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { dirname, basename } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { adaptBuilder, genericCard } from './builders.mjs';
-import { sceneSchedule, exprFor, SPEAKER_JA, probe } from './timing.mjs';
+import { sceneSchedule, exprFor, SPEAKER_JA, probe, FPS, HEAD_F, GAP_F } from './timing.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = HERE + '/../..';
@@ -22,7 +22,19 @@ const CHARDIR = 'poc/character/out/cutout/reel';
 const BGM_SRC = process.env.BGM_FILE || 'assets/video/bgm_classroom_body.wav';
 const OPENING_SRC = 'assets/video/opening.mp4';
 const ENDING_SRC = 'assets/video/ending.mp4';
-const TITLE_INTRO = 3.0; // render_project がタイトル導入を先頭に3秒入れる分のオフセット
+const TITLE_INTRO_F = 72; // オープニング.mp4 が無いとき、render_project がタイトル導入を先頭に3秒入れる分
+// DaVinci のタイムラインは 01:00:00:00 から始まる（作業指示一覧のタイムコードもこれに合わせる）
+const TIMELINE_START_F = 60 * 60 * FPS;
+const pad2 = (n) => String(n).padStart(2, '0');
+function timecode(frame) {
+  const f = TIMELINE_START_F + frame;
+  const sec = Math.floor(f / FPS);
+  return `${pad2(Math.floor(sec / 3600))}:${pad2(Math.floor(sec / 60) % 60)}:${pad2(sec % 60)}:${pad2(f % FPS)}`;
+}
+function videoFrames(file) {
+  const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_packets', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', file], { encoding: 'utf8' });
+  return Number(r.stdout.trim()) || 0;
+}
 const W = 1280, H = 720;
 
 const VISUAL_JA = { comparison: '比較図', number_animation: '数字アニメ', chart: 'グラフ', infographic: '概念図', character_conversation: '会話', character_explanation: 'キャラ解説', text_emphasis: '強調テロップ', timeline: '年表', process: '手順図', recap: 'まとめ', generated_video: 'AI映像', broll: '実写素材' };
@@ -55,16 +67,19 @@ async function main() {
   rmSync(OUTDIR, { recursive: true, force: true });
   for (const d of ['素材/映像', '素材/図解', '素材/立ち絵', '素材/音声', '素材/BGM', '素材/背景']) mkdirSync(`${OUTDIR}/${d}`, { recursive: true });
 
-  const manifest = { title: project.title, theme: project.theme ?? "", goal: project.goal ?? "", spec: { width: W, height: H, fps: 24, format: 'mp4 (H.264)' }, titleIntroSec: TITLE_INTRO, scenes: [], assets: {} };
-  const csv = [['シーン', 'セクション', '演者', 'セリフ', '映像タイプ', '図解・映像素材名', '音声素材名', '立ち絵素材名', '強調テロップ', '空ける間(フレーム)', '補足'].map(csvCell).join(',')];
+  // セリフの置き場所（タイムコード）はオープニングの長さから数える
+  const openingF = existsSync(OPENING_SRC) ? videoFrames(OPENING_SRC) : TITLE_INTRO_F;
+  const manifest = { title: project.title, theme: project.theme ?? "", goal: project.goal ?? "", spec: { width: W, height: H, fps: FPS, format: 'mp4 (H.264)' }, titleIntroSec: openingF / FPS, scenes: [], assets: {} };
+  const csv = [['シーン', 'セクション', '演者', 'セリフ', '映像タイプ', '図解・映像素材名', '音声素材名', '立ち絵素材名', '強調テロップ', '空ける間(フレーム)', '置く位置(タイムコード)', '補足'].map(csvCell).join(',')];
 
-  let absStart = TITLE_INTRO;
+  let absStartF = openingF;
   for (let si = 0; si < scenes.length; si++) {
     const scene = scenes[si];
     const tag = String(si + 1).padStart(3, '0');
     const no = si + 1;
     const typeJa = VISUAL_JA[scene.visual.type] || scene.visual.type;
-    const { D, lines } = sceneSchedule(scene, VOX, tag);
+    const { D, sceneF, lines } = sceneSchedule(scene, VOX, tag);
+    const absStart = absStartF / FPS;
     const isConv = scene.visual.type === 'character_conversation';
     process.stdout.write(`[S${no}] ${scene.section}/${scene.visual.type} `);
 
@@ -104,6 +119,8 @@ async function main() {
       li: ln.li, speaker: ln.speaker, speakerJa: SPEAKER_JA[ln.speaker] || ln.speaker,
       text: ln.text, emphasis: ln.emphasis,
       startAbs: absStart + ln.start, endAbs: absStart + ln.end,
+      // 前のセリフの終わり（場面の最初のセリフは場面の頭）から空けるフレーム数と、置く位置
+      gapF: k === 0 ? HEAD_F : GAP_F, startTc: timecode(absStartF + ln.startF),
       expr: isConv ? exprFor(ln.speaker, ln.emotion) : null,
       audio: audioFiles[k] || '',
     }));
@@ -116,16 +133,17 @@ async function main() {
     // CSV 行（発話ごと）。強調テロップ列は「重ねて入れる文字」だけを書く。
     const note = [telopNote, scene.visual.description || ''].filter(Boolean).join(' ');
     if (rowLines.length === 0) {
-      csv.push([`S${no}`, SECTION_JA[scene.section] || scene.section, '', '', typeJa, figFile, '', '', overlayTelop, '', note].map(csvCell).join(','));
+      csv.push([`S${no}`, SECTION_JA[scene.section] || scene.section, '', '', typeJa, figFile, '', '', overlayTelop, '', timecode(absStartF), note].map(csvCell).join(','));
     } else rowLines.forEach((r, k) => {
       csv.push([`S${no}`, k === 0 ? SECTION_JA[scene.section] || scene.section : '', r.speakerJa, r.text, k === 0 ? typeJa : '',
-        k === 0 ? figFile : '', r.audio, r.expr || '', k === 0 ? overlayTelop : '', '', k === 0 ? note : ''].map(csvCell).join(','));
+        k === 0 ? figFile : '', r.audio, r.expr || '', k === 0 ? overlayTelop : '',
+        k === 0 ? `場面の頭から${r.gapF}` : String(r.gapF), r.startTc, k === 0 ? note : ''].map(csvCell).join(','));
     });
 
-    absStart += D;
+    absStartF += sceneF;
     process.stdout.write('\n');
   }
-  manifest.totalSec = +absStart.toFixed(2);
+  manifest.totalSec = +(absStartF / FPS).toFixed(2);
 
   // 4) 立ち絵（全14表情）・BGM をコピー
   const chars = existsSync(CHARDIR) ? readdirSync(CHARDIR).filter((f) => f.endsWith('.png')) : [];
@@ -150,12 +168,11 @@ async function main() {
     'このフォルダの素材を使って、DaVinci Resolve で動画を1本つくります。',
     '',
     '■ 進め方',
-    '1) 「手順書.md」を上から順番にやる。わからない所は支援員さんに聞く。',
-    '2) 「作業指示一覧.csv」（Excelで開けます）を上から確認し、音声と素材を順番に置く。',
+    '1) アプリの「作業のしかた」を上から順番にやる。わからない所は支援員さんに聞く。',
+    '2) 字幕の文と、セリフを置く位置は「作業指示一覧.csv」（Excelで開けます）にあります。',
     '',
     '■ フォルダの中身',
-    '・手順書.md    … この通りにやれば完成します（DaVinci Resolve 用）',
-    '・作業指示一覧.csv … シーン・演者・セリフ・使用素材・必要な間の一覧',
+    '・作業指示一覧.csv … シーン・演者・セリフ・使用素材・空ける間・置く位置（タイムコード）の一覧',
     '・素材/映像    … 見本と同じ動きが付いたシーン別のMP4素材（利用者がアニメーションを作る必要はありません）',
     '・素材/図解    … 映像素材を生成できなかった場合に使う静止画',
     '・素材/立ち絵  … ハル・ミナ先生の表情ちがいの画像',

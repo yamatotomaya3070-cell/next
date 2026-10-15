@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { T, FONT, appear, text, boardBG } from './shared.mjs';
+import { T, FONT, text, boardBG } from './shared.mjs';
 import { renderSubtitle, renderTelop, renderSection } from './overlay.mjs';
 
 const W = 1280, H = 720;
@@ -50,7 +50,9 @@ export function buildConversationSVG(scene, t, { includeOverlays = true, include
   const parts = [];
   parts.push(boardBG('cvbg'));
 
-  const turn = scene.turns.find((x) => t >= x.start && t < x.start + x.dur) || scene.turns[scene.turns.length - 1];
+  // 話している最中のセリフ（間のときは無し）。立ち絵は、間のあいだも直前に話した人のまま
+  const speaking = scene.turns.find((x) => t >= x.start && t < x.start + x.dur) || null;
+  const turn = speaking || [...scene.turns].reverse().find((x) => t >= x.start) || scene.turns[0];
   const haruActive = turn.speaker === 'haru';
   const localT = t - turn.start;
   const emo = turn.emotion || 'neutral';
@@ -67,8 +69,8 @@ export function buildConversationSVG(scene, t, { includeOverlays = true, include
   if (includeOverlays) {
     if (scene.telop) parts.push(renderTelop(scene.telop.text, t, scene.telop.at));
     if (includeSection) parts.push(renderSection(scene.section));
-    const a = appear(localT, 0.15, 0.3);
-    parts.push(renderSubtitle(turn.speaker, turn.text, a.o));
+    // 字幕は、セリフの頭からそのまま出す（DaVinci の字幕の型と同じ。見本だけに動きを付けない）
+    if (speaking) parts.push(renderSubtitle(speaking.speaker, speaking.text, 1));
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;

@@ -7,13 +7,16 @@
  *
  * 実機（Resolve 21）で確かめた規則:
  * - クリップのフレーム数: 音声は「秒数×24」を切り捨て、映像は実際のフレーム数
- * - スクリプトは長さ n で置くが、実際にタイムラインに乗る長さは n−1（全部そろって1フレーム短い）
+ * - AppendToTimeline の endFrame は「含まない」。endFrame = n で n フレーム乗る
+ *   （以前は n−1 を渡して全部1フレーム短く乗り、つなぎ目に黒い1フレームが出ていた）
+ *
+ * セリフの置き場所はフレームの整数で決める。完成見本（poc/scene/timing.mjs の frameSchedule）と同じ式。
  */
 
 export const FPS = 24;
-export const HEAD = 0.4; // 場面の頭の間（秒）
-export const GAP = 0.28; // セリフとセリフの間（秒）
-export const TAIL = 0.5; // 場面の終わりの間（秒）
+export const HEAD_F = 10; // 場面の頭の間（フレーム）
+export const GAP_F = 7; // セリフとセリフの間（フレーム）
+export const TAIL_F = 12; // 場面の終わりの間（フレーム）
 
 export interface ClipInfo {
   name: string;
@@ -46,7 +49,7 @@ export interface ArrangeResult {
 const placed = (name: string, start: number, frames: number): PlacedClip => ({
   name,
   start,
-  length: frames - 1,
+  length: frames,
 });
 
 const sceneNoOf = (name: string) => Number(name.slice(1, 3));
@@ -71,15 +74,21 @@ export function simulateArrange(input: ArrangeInput): ArrangeResult {
       .filter((v) => sceneNoOf(v.name) === no)
       .sort((a, b) => lineNoOf(a.name) - lineNoOf(b.name));
     const sceneStart = pos;
-    let t = HEAD;
+    let cur = HEAD_F;
+    let lastEnd = 0;
     for (const ln of lines) {
-      voice.push(placed(ln.name, sceneStart + Math.round(t * FPS), ln.frames));
-      t += ln.frames / FPS + GAP;
+      voice.push(placed(ln.name, sceneStart + cur, ln.frames));
+      lastEnd = cur + ln.frames;
+      cur = lastEnd + GAP_F;
     }
-    let sceneLen = Math.round((t - GAP + TAIL) * FPS);
+    let sceneLen = lastEnd + TAIL_F;
     const clip = input.videos.find((v) => sceneNoOf(v.name) === no);
     if (clip) {
       video.push(placed(clip.name, sceneStart, clip.frames));
+      // 映像がセリフより短いと、次の場面までの間が黒くなる（完成見本とも合わない）
+      if (clip.frames < sceneLen) {
+        problems.push(`S${String(no).padStart(2, "0")} の場面の映像が ${sceneLen - clip.frames}フレーム足りません`);
+      }
       if (clip.frames > sceneLen) sceneLen = clip.frames;
     } else {
       problems.push(`S${String(no).padStart(2, "0")} の場面の映像がありません`);
@@ -91,7 +100,7 @@ export function simulateArrange(input: ArrangeInput): ArrangeResult {
   if (input.bgm) {
     for (let b = bodyStart; b < bodyEnd; ) {
       const len = Math.min(input.bgm.frames, bodyEnd - b);
-      bgm.push({ start: b, length: len - 1 });
+      bgm.push({ start: b, length: len });
       b += len;
     }
   } else {
@@ -103,6 +112,5 @@ export function simulateArrange(input: ArrangeInput): ArrangeResult {
     pos += input.ending.frames;
   }
 
-  // 最後のクリップも1フレーム短く乗るので、タイムラインの長さは pos−1
-  return { video, voice, bgm, totalFrames: pos - 1, problems };
+  return { video, voice, bgm, totalFrames: pos, problems };
 }

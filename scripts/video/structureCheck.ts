@@ -32,7 +32,12 @@ export interface VoiceMatchDetail {
   durationSec: number;
   inSample: ClipMatch | null;
   inSubmission: ClipMatch[];
+  /** 提出で見つからなかったとき、ゆるい基準で見つかった候補（見つけ損ないの見分け用） */
+  nearMiss: ClipMatch | null;
 }
+
+/** 見つけ損ないかどうかを見分けるための、ゆるい基準（通常は score 0.25・coverage 0.5） */
+const NEAR_MISS_OPTIONS = { maxMatches: 1, minScore: 0.12, minCoverage: 0.3 } as const;
 
 export interface StructureCheckResult {
   checks: CheckItem[];
@@ -68,7 +73,9 @@ export function runStructureCheck(input: StructureCheckInput): StructureCheckRes
     const clip = fingerprint(decodePcmMono8k(join("voices", name), input.workdir));
     const inSample = findClipInTrack(clip, sampleIndex, { maxMatches: 1 })[0] ?? null;
     const inSubmission = findClipInTrack(clip, submissionIndex, { maxMatches: 3 });
-    return { name, durationSec: clip.durationSec, inSample, inSubmission };
+    const nearMiss =
+      inSubmission.length === 0 ? (findClipInTrack(clip, submissionIndex, NEAR_MISS_OPTIONS)[0] ?? null) : null;
+    return { name, durationSec: clip.durationSec, inSample, inSubmission, nearMiss };
   });
 
   const placements: VoicePlacement[] = details.map((d) => ({
@@ -76,6 +83,10 @@ export function runStructureCheck(input: StructureCheckInput): StructureCheckRes
     sampleStartSec: d.inSample?.startSec ?? null,
     submissionStarts: d.inSubmission.map((m) => m.startSec).sort((a, b) => a - b),
     durationSec: d.durationSec,
+    sampleScore: d.inSample?.score,
+    nearMiss: d.nearMiss
+      ? { startSec: d.nearMiss.startSec, score: d.nearMiss.score, coverage: d.nearMiss.coverage }
+      : undefined,
   }));
 
   return { checks: checkVoiceStructure(placements), placements, details };

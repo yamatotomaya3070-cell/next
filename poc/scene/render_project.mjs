@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { renderSubtitle, renderSection, inject } from '../infographic/overlay.mjs';
 import { buildTitleSVG } from '../infographic/title.mjs';
 import { adaptBuilder, genericCard, convFrame } from './builders.mjs';
+import { frameSchedule } from './timing.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = process.argv[2] || 'poc/scene/out/newnisa_project.json';
@@ -104,22 +105,23 @@ async function main() {
     const tag = String(si + 1).padStart(3, '0');
     process.stdout.write(`\n[${tag}] ${scene.section}/${scene.visual.type} `);
 
-    // 1) 各発話を合成 → 尺
-    const head = 0.4, gap = 0.28, tail = 0.5;
-    const parts = [];
-    const sched = [];
-    let cur = head;
+    // 1) 各発話を合成 → 尺。置き場所はフレーム単位（timing.mjs。DaVinci の自動配置と同じ式）
+    const wavs = [];
+    const durations = [];
     for (let li = 0; li < scene.audio.length; li++) {
       const line = { ...scene.audio[li], _section: scene.section };
       const wav = `${VOX}/s${tag}_l${li}.wav`;
       if (!existsSync(wav)) await synthLine(line, wav);
-      const d = probe(wav);
-      sched.push({ start: cur, end: cur + d, line });
-      parts.push({ wav, at: cur });
-      cur += d + gap;
+      wavs.push(wav);
+      durations.push(probe(wav));
       process.stdout.write('.');
     }
-    const D = Math.max(2.5, cur - gap + tail);
+    const { lines: frames, sceneF } = frameSchedule(durations);
+    const sched = frames.map((fr, li) => ({
+      start: fr.startF / FPS, end: fr.startF / FPS + durations[li], line: { ...scene.audio[li], _section: scene.section },
+    }));
+    const parts = frames.map((fr, li) => ({ wav: wavs[li], at: fr.startF / FPS }));
+    const D = sceneF / FPS;
 
     // 2) シーン音声を組み立て（head/gap無音 + 各発話）
     const sceneWav = `${WORK}/a_${tag}.wav`;
@@ -127,10 +129,10 @@ async function main() {
       const inputs = ['-y'];
       parts.forEach((p) => inputs.push('-i', p.wav));
       const fc = parts.map((p, k) => `[${k}:a]adelay=${Math.round(p.at * 1000)}:all=1[a${k}]`).join(';')
-        + ';' + parts.map((_, k) => `[a${k}]`).join('') + `amix=inputs=${parts.length}:normalize=0,apad,atrim=0:${D.toFixed(2)}[out]`;
+        + ';' + parts.map((_, k) => `[a${k}]`).join('') + `amix=inputs=${parts.length}:normalize=0,apad,atrim=end=${D.toFixed(6)}[out]`;
       ff([...inputs, '-filter_complex', fc, '-map', '[out]', '-c:a', 'pcm_s16le', '-ar', '24000', '-ac', '1', sceneWav]);
     } else {
-      ff(['-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-t', D.toFixed(2), sceneWav]);
+      ff(['-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-af', `atrim=end=${D.toFixed(6)}`, sceneWav]);
     }
 
     // 3) フレーム描画
@@ -140,15 +142,15 @@ async function main() {
       ? convFrame(scene, sched, { includeOverlays: false })
       : builder;
     const secJa = SECTION_JA[scene.section] || scene.section;
-    const nF = Math.round(D * FPS);
+    const nF = sceneF;
     for (let i = 0; i < nF; i++) {
       const t = i / FPS;
       const visualSvg = visualBuilder(t);
       await sharp(Buffer.from(visualSvg)).png().toFile(`${WORK}/v_${tag}_${String(i).padStart(4, '0')}.png`);
       let svg = builder(t);
       if (!isConv) {
-        // セクション見出し＋現在の発話の字幕を重ねる
-        const active = sched.find((x) => t >= x.start && t < x.end) || (t < (sched[0]?.start ?? 0) ? null : sched[sched.length - 1]);
+        // セクション見出し＋現在の発話の字幕を重ねる（セリフの間は字幕なし。就労者の字幕も音声と同じ長さ）
+        const active = sched.find((x) => t >= x.start && t < x.end) || null;
         let frag = SECTION_LABEL ? renderSection(secJa) : '';
         if (active && active.line.text) frag += renderSubtitle(active.line.speaker, active.line.text, 1);
         svg = inject(svg, frag);
@@ -158,7 +160,7 @@ async function main() {
     }
     const clip = `clip_${tag}.mp4`;
     ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/f_${tag}_%04d.png`, '-i', sceneWav,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', `${WORK}/${clip}`]);
+      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-frames:v', String(nF), '-t', D.toFixed(6), '-movflags', '+faststart', `${WORK}/${clip}`]);
     ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/v_${tag}_%04d.png`,
       '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-movflags', '+faststart', `${WORK}/visual_assets/visual_${tag}.mp4`]);
     clips.push(clip);

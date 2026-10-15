@@ -212,6 +212,16 @@ async function compareWithSample(
     console.log(
       `  構成照合: セリフ ${structure.details.filter((d) => d.inSample).length}/${structure.details.length}本を見本で確認（最低スコア ${weakest.toFixed(2)}）`,
     );
+    // 提出側の照合結果も残す（誤判定のあとで、どのセリフがどれだけ足りなかったかを追えるように）
+    const fmt = (m: { score: number; coverage: number } | null | undefined) =>
+      m ? `score ${m.score.toFixed(2)} / coverage ${m.coverage.toFixed(2)}` : "なし";
+    for (const d of structure.details) {
+      const best = d.inSubmission[0];
+      const line = best
+        ? `一致 ${fmt(best)}${d.inSubmission.length > 1 ? `（${d.inSubmission.length}回）` : ""}`
+        : `見つからず（ゆるい基準: ${fmt(d.nearMiss)}）`;
+      console.log(`    ${d.name}: 見本 ${fmt(d.inSample)} → 提出 ${line}`);
+    }
   }
 
   // 字幕照合。作業指示一覧は ZIP 内の CSV を優先し、無ければ案件の教材（revision_note）を使う

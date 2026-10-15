@@ -1,9 +1,33 @@
-// シーンのタイミング計算＋立ち絵の表情マッピング。build_materials.mjs / build_manual.mjs で共有。
-//   render_project.mjs と同じ head/gap/tail でスケジュールを組むので、完成見本と時間が一致する。
+// シーンのタイミング計算＋立ち絵の表情マッピング。render_project.mjs / build_materials.mjs で共有。
+//   セリフの置き場所はすべて「フレーム（1/24秒）」の整数で決める。DaVinci の「絆_素材を並べる.lua」と
+//   src/lib/scene/arrangeSimulation.ts も同じ式なので、完成見本・自動配置・作業指示一覧が1フレームも違わない。
+//   （秒のまま足すと、Resolve がセリフの長さをフレームに切り捨てる分だけ後ろのセリフほど早くずれる）
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-export const HEAD = 0.4, GAP = 0.28, TAIL = 0.5;
+export const FPS = 24;
+// 場面の頭の間・セリフとセリフの間・場面の終わりの間（フレーム）
+export const HEAD_F = 10, GAP_F = 7, TAIL_F = 12;
+// 声の無い場面でも最低これだけは映す（フレーム）
+export const MIN_SCENE_F = 60;
+
+// Resolve と同じ数え方: 音声のフレーム数は「秒数×24」の切り捨て
+export const audioFramesOf = (sec) => Math.floor(sec * FPS + 1e-6);
+
+// セリフの長さ（秒）の並び → 各セリフの開始フレーム・長さと、場面の長さ（フレーム）
+export function frameSchedule(durations) {
+  let cur = HEAD_F;
+  let end = 0;
+  const lines = durations.map((d) => {
+    const lenF = audioFramesOf(d);
+    const startF = cur;
+    end = startF + lenF;
+    cur = end + GAP_F;
+    return { startF, lenF };
+  });
+  const sceneF = Math.max(MIN_SCENE_F, lines.length ? end + TAIL_F : 0);
+  return { lines, sceneF };
+}
 export const SPEAKER_JA = { narrator: 'ナレーション', haru: 'ハル', mina: 'ミナ先生' };
 
 // emotion → 立ち絵ファイル名（conversation.mjs と同一マップ）
@@ -22,17 +46,18 @@ export function probe(p) {
 }
 
 // 1シーンのスケジュール。voxDir に s{tag}_l{li}.wav がある前提（無ければ d=1.5 と仮定）。
+//   start/end は秒（start は開始フレーム÷24、end は声が実際に終わる時刻）。D は場面の長さ（秒）。
 export function sceneSchedule(scene, voxDir, tag) {
-  const lines = [];
-  let cur = HEAD;
-  (scene.audio || []).forEach((a, li) => {
-    const file = `${voxDir}/s${tag}_l${li}.wav`;
-    const d = probe(file) || 1.5;
-    lines.push({ li, speaker: a.speaker, text: a.text, emotion: a.emotion, emphasis: a.emphasis || [], start: cur, end: cur + d, file });
-    cur += d + GAP;
-  });
-  const D = Math.max(2.5, cur - GAP + TAIL);
-  return { D, lines };
+  const audio = scene.audio || [];
+  const files = audio.map((_, li) => `${voxDir}/s${tag}_l${li}.wav`);
+  const durations = files.map((file) => probe(file) || 1.5);
+  const { lines: frames, sceneF } = frameSchedule(durations);
+  const lines = audio.map((a, li) => ({
+    li, speaker: a.speaker, text: a.text, emotion: a.emotion, emphasis: a.emphasis || [],
+    startF: frames[li].startF, lenF: frames[li].lenF,
+    start: frames[li].startF / FPS, end: frames[li].startF / FPS + durations[li], file: files[li],
+  }));
+  return { D: sceneF / FPS, sceneF, lines };
 }
 
 // mm:ss.d 形式（DaVinci のタイムコード相談用に読みやすく）

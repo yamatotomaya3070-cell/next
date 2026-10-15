@@ -449,7 +449,8 @@ export const mockProvider: AiProvider = {
       input.estimatedMinutes == null ||
       input.workMinutes <= input.estimatedMinutes * 1.5;
 
-    const base = 55 + Math.round(checkRatio * 30) + (onTime ? 10 : 0);
+    // 作業時間はタイマーの押し忘れで長く出ることがあるので、点数には入れない（助言だけ）
+    const base = 65 + Math.round(checkRatio * 30);
     const score = Math.min(100, base + (input.note ? 5 : 0));
 
     return {
@@ -469,7 +470,7 @@ export const mockProvider: AiProvider = {
           ? ["チェックリストで確認していない項目があります。提出前にもう一度見直しましょう"]
           : []),
         ...(!onTime
-          ? ["目安より時間がかかりました。困ったときは早めに相談しましょう"]
+          ? ["目安より長めの時間になっていました。休憩のときは「⏸ 休憩する」を押すと、作業時間が正しく残ります。困ったところがあれば、早めに相談しましょう"]
           : []),
         ...(checkRatio === 1 && onTime
           ? ["次はもう少しむずかしい課題に挑戦してみましょう"]
@@ -485,10 +486,10 @@ export const mockProvider: AiProvider = {
         {
           key: "deadline",
           label: "時間・納期",
-          score: onTime ? 5 : 3,
+          score: 5,
           comment: onTime
             ? "目安時間内に完了できました。"
-            : "時間がかかりました。作業を分けて進めてみましょう。",
+            : "目安より長めでした（休憩の押し忘れも含まれるので、点数には入れていません）。",
         },
         {
           key: "communication",

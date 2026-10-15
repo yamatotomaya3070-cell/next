@@ -4,6 +4,7 @@ import { requireRole, createClient } from "@/lib/supabase/server";
 import type { Profile, Task, TaskMaterial } from "@/lib/types";
 import { SKILL_TAG_LABELS } from "@/lib/types";
 import { approveMaterial, publishTask, setSampleVisibility } from "@/lib/actions/staff";
+import { TaskPageRefresher } from "@/components/TaskPageRefresher";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge, TaskTypeBadge } from "@/components/ui/StatusBadge";
@@ -90,6 +91,8 @@ export default async function StaffTaskDetailPage({
 
   return (
     <PageContainer>
+      {/* 動画のリンク（1時間で切れる）を、開いたままでも切れる前に新しくする */}
+      <TaskPageRefresher awaitingResult={false} />
       <Link
         href="/staff/tasks"
         className="inline-flex min-h-11 items-center gap-1 font-bold text-primary hover:text-primary-dark hover:underline"

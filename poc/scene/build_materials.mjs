@@ -1,7 +1,8 @@
 // VideoProject(data.json) → 就労者が DaVinci でフル編集するための「素材フォルダ」を書き出す。
 //   ・図解は overlay(テロップ/字幕/セクション)を外した no-telop の完成フレームPNG
 //   ・立ち絵/BGM/背景はコピー、音声は vox キャッシュ(シーン別・話者別)をコピー
-//   ・作業指示一覧.csv（利用者向け。順番・空ける間・置く位置のタイムコード）と 素材一覧.json を出力
+//   ・音声は前後に無音を足してあり、タイムラインにすき間なくつなげて並べるだけで見本と同じ位置になる
+//   ・作業指示一覧.csv（利用者向け。順番・置く位置のタイムコード）と 素材一覧.json を出力
 //   使い方: node poc/scene/build_materials.mjs [project.json] [出力フォルダ]
 import sharp from 'sharp';
 import { mkdirSync, rmSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -9,7 +10,7 @@ import { dirname, basename } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { adaptBuilder, genericCard } from './builders.mjs';
-import { sceneSchedule, exprFor, SPEAKER_JA, probe, FPS, HEAD_F, GAP_F } from './timing.mjs';
+import { sceneSchedule, voicePadding, exprFor, SPEAKER_JA, probe, FPS } from './timing.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = HERE + '/../..';
@@ -46,12 +47,22 @@ async function svgToPng(svg, file) { await sharp(Buffer.from(svg)).png().toFile(
 // DaVinci はセリフ(A1)と BGM(A2) をそのまま足すので、素材の声がそのままだと完成見本より約3LU大きく、
 // ピークも 0dBFS に張り付く。支給する音声側で下げておけば、就労者は音量を触らずに見本と同じ仕上がりになる。
 const VOICE_GAIN_DB = -3;
-function copyVoice(src, dst) {
-  const r = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', src, '-af', `volume=${VOICE_GAIN_DB}dB`, '-c:a', 'pcm_s16le', dst], { encoding: 'utf8' });
-  if (r.status !== 0 || !existsSync(dst)) {
-    console.warn(`  音量調整に失敗したのでそのままコピーします: ${basename(src)} ${r.stderr || ''}`);
-    copyFileSync(src, dst);
-  }
+// 支給する音声は 48kHz（1フレーム＝2000サンプルで割り切れる）。最後に 1/4 フレームだけ余分に足し、
+// Resolve が長さを「秒×24の切り捨て」で数えても丸め誤差で1フレーム短くならないようにする（並べるとき端は切る）
+const VOICE_RATE = 48000;
+const SAMPLES_PER_F = VOICE_RATE / FPS;
+const VOICE_SAFETY_SAMPLES = SAMPLES_PER_F / 4;
+// 声を lenF フレームちょうどに切りそろえ、前に leadF・後ろに trailF フレームの無音を足して書き出す
+function copyVoice(src, dst, { leadF, lenF, trailF }) {
+  const total = (leadF + lenF + trailF) * SAMPLES_PER_F + VOICE_SAFETY_SAMPLES;
+  const af = [
+    `aresample=${VOICE_RATE}`, `volume=${VOICE_GAIN_DB}dB`, `atrim=end_sample=${lenF * SAMPLES_PER_F}`,
+    ...(leadF > 0 ? [`adelay=delays=${leadF * SAMPLES_PER_F}S:all=1`] : []),
+    `apad=whole_len=${total}`, `atrim=end_sample=${total}`,
+  ].join(',');
+  const r = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', src, '-af', af, '-ar', String(VOICE_RATE), '-ac', '1', '-c:a', 'pcm_s16le', dst], { encoding: 'utf8' });
+  // 長さがずれた音声を渡すと、詰めて並べたときに後ろのセリフが全部ずれるので、そのままコピーはしない
+  if (r.status !== 0 || !existsSync(dst)) throw new Error(`セリフ音声を書き出せませんでした: ${basename(src)} ${r.stderr || ''}`);
 }
 
 // 会話シーン用の暗い背景（立ち絵を乗せる下地）
@@ -70,7 +81,11 @@ async function main() {
   // セリフの置き場所（タイムコード）はオープニングの長さから数える
   const openingF = existsSync(OPENING_SRC) ? videoFrames(OPENING_SRC) : TITLE_INTRO_F;
   const manifest = { title: project.title, theme: project.theme ?? "", goal: project.goal ?? "", spec: { width: W, height: H, fps: FPS, format: 'mp4 (H.264)' }, titleIntroSec: openingF / FPS, scenes: [], assets: {} };
-  const csv = [['シーン', 'セクション', '演者', 'セリフ', '映像タイプ', '図解・映像素材名', '音声素材名', '立ち絵素材名', '強調テロップ', '空ける間(フレーム)', '置く位置(タイムコード)', '補足'].map(csvCell).join(',')];
+  const csv = [['シーン', 'セクション', '演者', 'セリフ', '映像タイプ', '図解・映像素材名', '音声素材名', '立ち絵素材名', '強調テロップ', '声が出る位置(タイムコード)', '補足'].map(csvCell).join(',')];
+
+  // 先に全場面の置き場所を決め、セリフ音声に足す無音（次のセリフの頭まで）を求める
+  const schedules = scenes.map((scene, si) => sceneSchedule(scene, VOX, String(si + 1).padStart(3, '0')));
+  const padding = voicePadding(schedules);
 
   let absStartF = openingF;
   for (let si = 0; si < scenes.length; si++) {
@@ -78,7 +93,7 @@ async function main() {
     const tag = String(si + 1).padStart(3, '0');
     const no = si + 1;
     const typeJa = VISUAL_JA[scene.visual.type] || scene.visual.type;
-    const { D, sceneF, lines } = sceneSchedule(scene, VOX, tag);
+    const { D, sceneF, lines } = schedules[si];
     const absStart = absStartF / FPS;
     const isConv = scene.visual.type === 'character_conversation';
     process.stdout.write(`[S${no}] ${scene.section}/${scene.visual.type} `);
@@ -98,13 +113,13 @@ async function main() {
       await svgToPng(builder(D), `${OUTDIR}/${figFile}`); // t=D → 全リビール完了の完成状態
     }
 
-    // 2) 音声（シーン別・話者別）を VOICE_GAIN_DB ぶん下げて書き出す
+    // 2) 音声（シーン別・話者別）を VOICE_GAIN_DB ぶん下げ、前後に無音を足して書き出す
     const audioFiles = [];
-    lines.forEach((ln) => {
-      if (!existsSync(ln.file)) { process.stdout.write('!'); return; }
+    lines.forEach((ln, k) => {
+      if (!existsSync(ln.file)) throw new Error(`セリフ音声がありません: ${ln.file}`);
       const spJa = SPEAKER_JA[ln.speaker] || ln.speaker;
       const dst = `素材/音声/S${String(no).padStart(2, '0')}_${String(ln.li + 1).padStart(2, '0')}_${spJa}.wav`;
-      copyVoice(ln.file, `${OUTDIR}/${dst}`);
+      copyVoice(ln.file, `${OUTDIR}/${dst}`, { ...padding[si][k], lenF: ln.lenF });
       audioFiles.push(dst);
     });
 
@@ -119,8 +134,10 @@ async function main() {
       li: ln.li, speaker: ln.speaker, speakerJa: SPEAKER_JA[ln.speaker] || ln.speaker,
       text: ln.text, emphasis: ln.emphasis,
       startAbs: absStart + ln.start, endAbs: absStart + ln.end,
-      // 前のセリフの終わり（場面の最初のセリフは場面の頭）から空けるフレーム数と、置く位置
-      gapF: k === 0 ? HEAD_F : GAP_F, startTc: timecode(absStartF + ln.startF),
+      // 声が出はじめる位置（音声ファイルの頭ではない。前に無音があるのは本編で最初のセリフだけ）
+      startTc: timecode(absStartF + ln.startF),
+      // 支給音声に足した無音（作り直すとき rebuildSceneTask がこれで声だけに戻す）
+      pad: { ...padding[si][k], lenF: ln.lenF },
       expr: isConv ? exprFor(ln.speaker, ln.emotion) : null,
       audio: audioFiles[k] || '',
     }));
@@ -133,11 +150,11 @@ async function main() {
     // CSV 行（発話ごと）。強調テロップ列は「重ねて入れる文字」だけを書く。
     const note = [telopNote, scene.visual.description || ''].filter(Boolean).join(' ');
     if (rowLines.length === 0) {
-      csv.push([`S${no}`, SECTION_JA[scene.section] || scene.section, '', '', typeJa, figFile, '', '', overlayTelop, '', timecode(absStartF), note].map(csvCell).join(','));
+      csv.push([`S${no}`, SECTION_JA[scene.section] || scene.section, '', '', typeJa, figFile, '', '', overlayTelop, timecode(absStartF), note].map(csvCell).join(','));
     } else rowLines.forEach((r, k) => {
       csv.push([`S${no}`, k === 0 ? SECTION_JA[scene.section] || scene.section : '', r.speakerJa, r.text, k === 0 ? typeJa : '',
         k === 0 ? figFile : '', r.audio, r.expr || '', k === 0 ? overlayTelop : '',
-        k === 0 ? `場面の頭から${r.gapF}` : String(r.gapF), r.startTc, k === 0 ? note : ''].map(csvCell).join(','));
+        r.startTc, k === 0 ? note : ''].map(csvCell).join(','));
     });
 
     absStartF += sceneF;
@@ -172,11 +189,11 @@ async function main() {
     '2) 字幕の文と、セリフを置く位置は「作業指示一覧.csv」（Excelで開けます）にあります。',
     '',
     '■ フォルダの中身',
-    '・作業指示一覧.csv … シーン・演者・セリフ・使用素材・空ける間・置く位置（タイムコード）の一覧',
+    '・作業指示一覧.csv … シーン・演者・セリフ・使用素材・声が出る位置（タイムコード）の一覧',
     '・素材/映像    … 見本と同じ動きが付いたシーン別のMP4素材（利用者がアニメーションを作る必要はありません）',
     '・素材/図解    … 映像素材を生成できなかった場合に使う静止画',
     '・素材/立ち絵  … ハル・ミナ先生の表情ちがいの画像',
-    '・素材/音声    … シーンごと・話す人ごとの声',
+    '・素材/音声    … シーンごと・話す人ごとの声（セリフの間の無音も入っています。すき間なくつなげて並べます）',
     '・素材/BGM     … 下に敷く音楽',
     '・素材/背景    … 会話シーンの背景',
     '',

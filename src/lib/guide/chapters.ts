@@ -25,6 +25,8 @@ export interface GuideSection {
   note?: { kind: "tip" | "warn"; title: string; body: string };
   /** この節で使うファイル（public に置いたもの） */
   download?: { href: string; label: string; size: string };
+  /** この節に関係する操作辞典の項目 id（operations.ts）。節の下に「辞典で見る」リンクが出る */
+  ops?: string[];
 }
 
 export interface GuideChapter {
@@ -80,6 +82,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "タイムラインの段（トラック）",
           body: "V1・V2…は映像や文字の段で、数字が大きいほど上に重なって見えます。A1・A2…は音の段です。",
         },
+        ops: ["page-switch", "screen-panels", "panel-toggle", "reset-layout"],
       },
       {
         id: "titles",
@@ -104,6 +107,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "エフェクトの欄が出ていないとき",
           body: "画面左上の魔法の杖のマークを押すと、左下に出てきます。",
         },
+        ops: ["text-add", "panel-toggle"],
       },
       {
         id: "keys",
@@ -120,6 +124,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "Delete キーに注意",
           body: "Delete で消すと、うしろにある素材が前に詰められて時間がずれます。消すときは Backspace を使います。",
         },
+        ops: ["undo", "save-project", "play-stop", "clip-delete", "timeline-zoom"],
       },
     ],
   },
@@ -142,6 +147,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           alt: "プロジェクト一覧の右下にある新規プロジェクトのボタンに赤い枠",
           marks: [{ n: 1, label: "新規プロジェクト" }],
         },
+        ops: ["project-new"],
       },
       {
         id: "rename",
@@ -166,6 +172,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           { text: "作業のとちゅうで、こまめに Ctrl + S を押す", hint: "Ctrl + S" },
           { text: "DaVinci が急にとじても、開きなおせば最後に保存したところから続けられます" },
         ],
+        ops: ["save-project"],
       },
     ],
   },
@@ -194,12 +201,14 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "［メディアの読み込み］を使わない理由",
           body: "右クリックの［メディアの読み込み］では、フォルダの中のフォルダが入りません。ドラッグがいちばん確実です。",
         },
+        ops: ["media-import", "media-bin"],
       },
       {
         id: "check",
         title: "入ったか確かめる",
         steps: [{ text: "メディアプールに音声・映像・画像のアイコンが並べば成功です" }],
         image: { src: img("b6_pool_filled"), alt: "メディアプールに素材のアイコンがたくさん並んだ画面" },
+        ops: ["media-list-view", "trouble-offline"],
       },
     ],
   },
@@ -213,7 +222,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       {
         id: "auto",
         title: "絆の案件：スクリプトで一気に並べる",
-        lead: "素材の読み込みまで終わったら使います。ファイル名の番号順に、決まった間隔で並びます。",
+        lead: "素材の読み込みまで終わったら使います。ファイル名の番号順に、セリフはすき間なくつながって並びます（セリフの間（ま）は音声ファイルの中に入っています）。",
         steps: [
           { text: "①上のメニューの［ワークスペース］を押す" },
           { text: "②［スクリプト］にマウスを乗せて、③［絆_素材を並べる］を押す" },
@@ -233,6 +242,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "メニューに出てこないとき",
           body: "パソコンの準備（職員の方の作業）がまだです。職員の方に声をかけてください。",
         },
+        ops: ["timeline-append", "timeline-place"],
       },
       {
         id: "auto-done",
@@ -274,6 +284,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 2, label: "リストビュー" },
           ],
         },
+        ops: ["media-list-view", "timeline-append"],
       },
       {
         id: "manual-append",
@@ -308,25 +319,26 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "見えにくいとき",
           body: "タイムラインの右上の［＋］を押すと、段が横に広がって合わせやすくなります。",
         },
+        ops: ["timeline-place", "clip-length-drag", "timeline-zoom"],
       },
       {
         id: "manual-timing",
-        title: "絆の案件を自分で並べる：セリフの間を見本と同じにする",
-        lead: "絆の案件で、スクリプトを使わずに自分でセリフを並べるとき（練習で並べ直すときも）は、作業指示一覧の「空ける間」と「置く位置」に合わせると、見本と同じ長さ・同じタイミングになります。",
+        title: "絆の案件を自分で並べる：セリフはすき間なくつなげる",
+        lead: "絆の案件で、スクリプトを使わずに自分でセリフを並べるとき（練習で並べ直すときも）の決まりです。セリフとセリフの間（ま）は、音声ファイルの中に「音のない時間」として、はじめから入っています。なので、タイムラインでは間を空けずに並べます。",
         steps: [
-          { text: "場面の映像（V1）を先に並べる。映像は、前の場面の映像の終わりにすき間なくつなげる" },
-          { text: "その場面の最初のセリフは、場面の映像の頭から「空ける間」のフレーム数（ふつう 10）だけ右に置く" },
-          { text: "2つ目からのセリフは、前のセリフの終わりから「空ける間」のフレーム数（ふつう 7）だけ右に置く" },
-          {
-            text: "位置がずれたかなと思ったら、「置く位置」のタイムコードで確かめる。タイムラインの上の時間の表示をクリックして、タイムコードを打って Enter を押すと、赤い線（再生の位置）がそこへ動きます。セリフの頭がその赤い線にそろっていれば合っています",
-            hint: "例：01:00:03:10 → Enter",
-          },
+          { text: "セリフの音声は、A1 の段に、ファイル名の番号の順に並べる" },
+          { text: "2つ目からのセリフは、前のセリフの右はしに、すき間なくぴったりつなげて置く（自分で間を空けない）" },
+          { text: "上の「自分で並べる①」のやり方（全部えらんで［タイムラインの末尾に追加］）なら、はじめからすき間なくつながって並びます" },
+          { text: "1本ずつドラッグして置くときは、スナップ（磁石のマーク）をオンにしておくと、前のクリップの右はしに吸いつくように止まります" },
+          { text: "場面の映像（V1）は、前の場面の映像の終わりにすき間なくつなげ、右はしをその場面の最後のセリフの終わりに合わせる" },
+          { text: "最後に、セリフとセリフの間に黒いすき間が無いか、タイムラインを拡大して確かめる" },
         ],
         note: {
-          kind: "tip",
-          title: "1フレームずつ動かすには",
-          body: "クリップをえらんで、カンマ（,）で左へ1フレーム、ピリオド（.）で右へ1フレーム動きます。",
+          kind: "warn",
+          title: "すき間ができてしまったら",
+          body: "すき間の上（何もない所）をクリックしてえらび、Delete を押すと、うしろが前に詰まって、すき間が消えます。クリップを消すときの Delete とちがい、ここでは詰めたいので Delete を使います。",
         },
+        ops: ["timeline-snap", "timeline-close-gap", "timeline-zoom", "timeline-nudge"],
       },
     ],
   },
@@ -340,7 +352,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       {
         id: "place",
         title: "字幕の型を置く",
-        lead: "型は話す人ごとに色が決まっています。音声ファイル名の最後に書いてある人の型を使います。",
+        lead: "型は話す人ごとに色が決まっています。音声ファイル名の最後に書いてある人の型を使います。「絆」の型が一覧に無いとき（外部のお仕事や、準備のすんでいないパソコン）は、下の「外部のお仕事①」と同じように［テキスト］を置いて作れます。",
         steps: [
           { text: "左下のエフェクトの欄で、左の一覧の［タイトル］を押し、上の検索に「絆」と入れる（右に「絆」の型が4つ並ぶ）" },
           { text: "①話す人の字幕の型を、字幕の段（V3）の、その音声の頭までドラッグする" },
@@ -350,6 +362,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           alt: "字幕の型を、V3の段の先頭へドラッグする矢印",
           marks: [{ n: 1, label: "字幕の型を V3 の音声の頭へ" }],
         },
+        ops: ["text-add", "subtitle-timing"],
       },
       {
         id: "length",
@@ -360,6 +373,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           alt: "字幕クリップの右はしを、下の音声の終わりに合わせている画面",
           marks: [{ n: 2, label: "字幕の右はし" }],
         },
+        ops: ["subtitle-timing", "clip-length-drag"],
       },
       {
         id: "text",
@@ -377,13 +391,14 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 4, label: "見え方" },
           ],
         },
+        ops: ["text-add"],
       },
       {
         id: "custom",
         title: "外部のお仕事①：［テキスト］の型を置いて文字を入れる",
         lead: "クラウドワークスなど外部のお仕事では、「絆」の型は使いません。依頼内容で指定された見た目に、自分で合わせます。",
         steps: [
-          { text: "依頼内容から、字幕の指定（フォント・大きさ・色・縁取り・画面のどこに出すか）を書き出す。指定が無い所は、完成見本があれば見本に合わせる" },
+          { text: "依頼内容から、字幕の指定（フォント・大きさ・色・縁取り・画面のどこに出すか）を書き出す。指定が無い所は、完成見本があれば、見本と自分の動画を同じ場面で止めて見くらべ、色・大きさ・場所を同じにする（くらべ方は下の「くわしい操作を辞典で見る」の［完成見本と見くらべる］）" },
           { text: "左下のエフェクトの欄で、左の一覧の［タイトル］を押し、①上の検索に「テキスト」と入れる" },
           { text: "②［テキスト］を、③字幕の段（V2）の、最初の音声の頭までドラッグする" },
           { text: "置いた字幕をクリックしてえらび、右上の［インスペクタ］の④文字の欄にセリフを入れる" },
@@ -403,6 +418,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "［テキスト+］ではなく［テキスト］",
           body: "検索すると［テキスト+］も出ますが、設定が多くて迷いやすいので、外部のお仕事では［テキスト］を使います。",
         },
+        ops: ["text-add", "compare-sample"],
       },
       {
         id: "custom-look",
@@ -424,6 +440,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 4, label: "見え方" },
           ],
         },
+        ops: ["text-look"],
       },
       {
         id: "custom-position",
@@ -449,6 +466,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "数字の欄では Ctrl + A を使わない",
           body: "数字の欄で Ctrl + A を押すと、タイムラインの全部のクリップがえらばれて、見た目の変更が全部に入ってしまいます。数字の欄はクリックしてそのまま数字を打ちます。",
         },
+        ops: ["text-position", "text-outline"],
       },
       {
         id: "custom-copy",
@@ -475,6 +493,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "見た目は最初の1つで決める",
           body: "2つ目からはコピーで増やすので、最初の1つの見た目を依頼内容とよく見くらべてから増やします。あとから全部を直すのは大変です。",
         },
+        ops: ["text-copy"],
       },
     ],
   },
@@ -508,11 +527,12 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "文字が二重にならないように",
           body: "作業指示一覧の強調テロップの欄が空いている場面には入れません。図や数字の映像には、はじめから文字が入っています。",
         },
+        ops: ["text-add", "clip-length-drag"],
       },
       {
         id: "fade",
         title: "テロップをふわっと出す（フェードイン）",
-        lead: "見本の強調テロップは、出るときに 8フレーム（約0.3秒）かけて、ふわっと出てきます。クリップの「フェードハンドル」を引くだけで同じ動きになります。",
+        lead: "絆の強調テロップは、出るときに 8フレーム（約0.3秒）かけて、ふわっと出します。クリップの左上のすみにある白い印（フェードハンドル）を、右へ 8フレーム分ドラッグすると、この動きになります。",
         steps: [
           { text: "タイムラインの右上の［＋］を何回か押して、テロップのクリップを横に大きく表示する" },
           { text: "テロップのクリップにマウスを乗せると、左上のすみに小さな白い印（フェードハンドル）が出る" },
@@ -524,6 +544,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "終わりはそのまま",
           body: "テロップは場面の終わりで消えます。終わりのほう（右上のすみ）の白い印はさわりません。外部のお仕事で「テロップをフェードで出す」と指定されたときも、同じやり方です。",
         },
+        ops: ["telop-fade", "video-fade"],
       },
       {
         id: "custom",
@@ -551,6 +572,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           title: "字幕と同じ見た目にしないとき",
           body: "テロップは字幕より大きく目立たせることが多いです。字幕の型をコピーして作ると同じ見た目になってしまうので、テロップは［テキスト］を新しく置いて作ります。",
         },
+        ops: ["text-add", "text-look", "text-position", "telop-fade"],
       },
     ],
   },
@@ -577,6 +599,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 2, label: "ボリューム" },
           ],
         },
+        ops: ["volume-clip", "volume-keyframe", "mixer-meter", "bgm-add"],
       },
     ],
   },
@@ -607,6 +630,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 3, label: "絆_YouTube_720p" },
           ],
         },
+        ops: ["export-settings", "export-small"],
       },
       {
         id: "render",
@@ -627,6 +651,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
             { n: 4, label: "すべてレンダー" },
           ],
         },
+        ops: ["export-basic"],
       },
       {
         id: "check",
@@ -635,6 +660,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
           { text: "書き出した動画を最初から最後まで再生する" },
           { text: "映像の順番・字幕の文と色・テロップを、作業指示一覧とくらべる。声がBGMに消されていないかも聞く" },
         ],
+        ops: ["export-check", "compare-sample"],
       },
       {
         id: "submit",
@@ -666,21 +692,26 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
         id: "undo",
         title: "まちがえて、変な所に置いてしまった",
         steps: [{ text: "Ctrl + Z で1つ前にもどります。何回でももどせます", hint: "Ctrl + Z" }],
+        ops: ["undo"],
       },
       {
         id: "shifted",
         title: "音声が前に詰められて、ずれてしまった",
         steps: [{ text: "Delete で消すと、うしろが詰まります。Ctrl + Z でもどして、Backspace で消しなおします" }],
+        ops: ["clip-delete", "clip-ripple-delete"],
       },
       {
         id: "no-template",
         title: "タイトルに「絆」の型や、スクリプトが出てこない",
-        steps: [{ text: "パソコンの準備がまだです。職員の方に声をかけてください" }],
+        steps: [{ text: "パソコンの準備がまだです。職員の方に声をかけてください" },
+          { text: "急ぐときは、型を使わずに作れます。字幕・テロップは［タイトル］の［テキスト］を置いてインスペクタで見た目を決め、書き出しは設定を自分で入れます（下の辞典のリンク）" }],
+        ops: ["text-add", "export-settings", "trouble-missing-template"],
       },
       {
         id: "crash",
         title: "DaVinci が急にとじてしまった",
         steps: [{ text: "もう一度開くと、最後に保存したところから続けられます。作業中はこまめに Ctrl + S を押します" }],
+        ops: ["trouble-crash"],
       },
     ],
   },

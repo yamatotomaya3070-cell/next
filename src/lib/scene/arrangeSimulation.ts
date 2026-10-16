@@ -10,13 +10,12 @@
  * - AppendToTimeline の endFrame は「含まない」。endFrame = n で n フレーム乗る
  *   （以前は n−1 を渡して全部1フレーム短く乗り、つなぎ目に黒い1フレームが出ていた）
  *
- * セリフの置き場所はフレームの整数で決める。完成見本（poc/scene/timing.mjs の frameSchedule）と同じ式。
+ * セリフの音声は、本編の頭からすき間なくつなげて並べる。セリフの間は、支給する音声ファイルの中に
+ * 無音として入れてある（poc/scene/timing.mjs の voicePadding）。場面の映像も本編の頭からつなげて並べ、
+ * セリフの合計と映像の合計が同じ長さになっていれば、声は完成見本と同じ位置で出る。
  */
 
 export const FPS = 24;
-export const HEAD_F = 10; // 場面の頭の間（フレーム）
-export const GAP_F = 7; // セリフとセリフの間（フレーム）
-export const TAIL_F = 12; // 場面の終わりの間（フレーム）
 
 export interface ClipInfo {
   name: string;
@@ -68,34 +67,30 @@ export function simulateArrange(input: ArrangeInput): ArrangeResult {
   }
   const bodyStart = pos;
 
+  let vpos = pos;
   const sceneNos = [...new Set(input.voices.map((v) => sceneNoOf(v.name)))].sort((a, b) => a - b);
   for (const no of sceneNos) {
     const lines = input.voices
       .filter((v) => sceneNoOf(v.name) === no)
       .sort((a, b) => lineNoOf(a.name) - lineNoOf(b.name));
-    const sceneStart = pos;
-    let cur = HEAD_F;
-    let lastEnd = 0;
     for (const ln of lines) {
-      voice.push(placed(ln.name, sceneStart + cur, ln.frames));
-      lastEnd = cur + ln.frames;
-      cur = lastEnd + GAP_F;
+      voice.push(placed(ln.name, vpos, ln.frames));
+      vpos += ln.frames;
     }
-    let sceneLen = lastEnd + TAIL_F;
     const clip = input.videos.find((v) => sceneNoOf(v.name) === no);
     if (clip) {
-      video.push(placed(clip.name, sceneStart, clip.frames));
-      // 映像がセリフより短いと、次の場面までの間が黒くなる（完成見本とも合わない）
-      if (clip.frames < sceneLen) {
-        problems.push(`S${String(no).padStart(2, "0")} の場面の映像が ${sceneLen - clip.frames}フレーム足りません`);
-      }
-      if (clip.frames > sceneLen) sceneLen = clip.frames;
+      video.push(placed(clip.name, pos, clip.frames));
+      pos += clip.frames;
     } else {
       problems.push(`S${String(no).padStart(2, "0")} の場面の映像がありません`);
     }
-    pos = sceneStart + sceneLen;
   }
-  const bodyEnd = pos;
+  // セリフの合計が映像の合計と違うと、詰めて並べたセリフが後ろほど見本からずれる（無音の入っていない古い音声など）
+  if (vpos !== pos) {
+    problems.push(`セリフと映像の長さが ${Math.abs(pos - vpos)}フレーム合いません`);
+  }
+  const bodyEnd = Math.max(pos, vpos);
+  pos = bodyEnd;
 
   if (input.bgm) {
     for (let b = bodyStart; b < bodyEnd; ) {

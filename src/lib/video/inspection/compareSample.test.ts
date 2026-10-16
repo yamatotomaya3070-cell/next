@@ -32,25 +32,14 @@ describe("compareProbeToSample", () => {
     });
   });
 
-  test("尺が許容差を超えると fail", () => {
-    const submission = { ...SAMPLE, durationSec: 360.0 };
-    expect(byKey(compareProbeToSample(submission, SAMPLE)).duration).toBe("fail");
-  });
-
-  test("尺の許容差は見本の長さに比例する（手で並べた数秒の差は通す）", () => {
-    // 372.4秒の2% = 約7.4秒。6秒ずれは通し、短い見本では最低2秒まで
-    expect(byKey(compareProbeToSample({ ...SAMPLE, durationSec: 366.4 }, SAMPLE)).duration).toBe("pass");
-    const short = { ...SAMPLE, durationSec: 60 };
-    expect(byKey(compareProbeToSample({ ...short, durationSec: 62.5 }, short)).duration).toBe("fail");
-    expect(byKey(compareProbeToSample({ ...short, durationSec: 61.5 }, short)).duration).toBe("pass");
-  });
-
-  test("尺が違うときは、短いか長いかと直し方を伝える", () => {
+  test("完成尺は参考として長さの差を見せるだけで、合否は決めない", () => {
+    // 切れ・余りは「末尾のエンディング」、セリフのずれは「セリフの間隔」で見る
     const shortItem = compareProbeToSample({ ...SAMPLE, durationSec: 350 }, SAMPLE).find((c) => c.key === "duration");
     const longItem = compareProbeToSample({ ...SAMPLE, durationSec: 395 }, SAMPLE).find((c) => c.key === "duration");
-    expect(shortItem?.message).toContain("短く");
-    expect(shortItem?.message).toContain("空ける間");
-    expect(longItem?.message).toContain("長く");
+    expect(shortItem?.status).toBe("pass");
+    expect(shortItem?.actual).toContain("22.4秒 短い");
+    expect(longItem?.status).toBe("pass");
+    expect(longItem?.actual).toContain("22.6秒 長い");
   });
 
   test("解像度が違うと fail、取得できないと unknown", () => {

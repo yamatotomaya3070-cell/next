@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { GUIDE_CHAPTERS, type GuideChapter, type GuideSection } from "@/lib/guide/chapters";
-import { IconAlert, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
+import { getOperation, operationHref, type GuideOperation } from "@/lib/guide/operations";
+import { IconAlert, IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
 
 interface GuideChapterViewProps {
   chapter: GuideChapter;
@@ -20,7 +21,33 @@ function Mark({ n }: { n: number }) {
   );
 }
 
-function SectionBlock({ section }: { section: GuideSection }) {
+/** 節の下に出す「操作辞典で見る」リンク */
+function OpLinks({ ids, basePath }: { ids: string[]; basePath: string }) {
+  const ops = ids.map((id) => getOperation(id)).filter((op): op is GuideOperation => Boolean(op));
+  if (ops.length === 0) return null;
+  return (
+    <div className="mt-5 rounded-xl border border-line bg-page p-4">
+      <p className="flex items-center gap-2 text-[15px] font-bold text-ink">
+        <IconBook className="size-5 text-primary" />
+        くわしい操作を辞典で見る
+      </p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {ops.map((op) => (
+          <li key={op.id}>
+            <Link
+              href={operationHref(basePath, op.id)}
+              className="inline-flex min-h-10 items-center rounded-full border border-line bg-surface px-4 text-[15px] text-primary hover:border-primary/40 hover:bg-primary-soft/30"
+            >
+              {op.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SectionBlock({ section, basePath }: { section: GuideSection; basePath: string }) {
   return (
     <section id={section.id} aria-labelledby={`${section.id}-h`} className="scroll-mt-6 border-t border-line pt-8">
       <h2 id={`${section.id}-h`} className="text-xl font-bold text-ink">
@@ -93,6 +120,8 @@ function SectionBlock({ section }: { section: GuideSection }) {
           </p>
         </div>
       )}
+
+      {section.ops && <OpLinks ids={section.ops} basePath={basePath} />}
     </section>
   );
 }
@@ -115,6 +144,13 @@ export function GuideChapterView({ chapter, basePath, audience }: GuideChapterVi
         <p className="text-sm font-bold text-primary">第{chapter.no}章</p>
         <h1 className="mt-1 text-2xl font-bold text-ink">{chapter.title}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{chapter.summary}</p>
+        <Link
+          href={`${basePath}/ops`}
+          className="mt-3 inline-flex min-h-11 items-center gap-1 text-base font-bold text-primary hover:underline"
+        >
+          <IconBook className="h-5 w-5" />
+          分からない言葉は操作辞典で調べる
+        </Link>
       </header>
 
       {chapter.sections.length > 1 && (
@@ -150,7 +186,7 @@ export function GuideChapterView({ chapter, basePath, audience }: GuideChapterVi
 
       <div className="mt-8 space-y-10">
         {chapter.sections.map((s) => (
-          <SectionBlock key={s.id} section={s} />
+          <SectionBlock key={s.id} section={s} basePath={basePath} />
         ))}
       </div>
 

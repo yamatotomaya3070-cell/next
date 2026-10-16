@@ -28,7 +28,26 @@ export function frameSchedule(durations) {
   const sceneF = Math.max(MIN_SCENE_F, lines.length ? end + TAIL_F : 0);
   return { lines, sceneF };
 }
-export const SPEAKER_JA = { narrator: 'ナレーション', haru: 'ハル', mina: 'ミナ先生' };
+// 支給するセリフ音声の前後に足す無音（フレーム）。タイムラインでセリフのクリップを
+//   すき間なくつなげて並べたとき、ちょうど完成見本と同じ位置で声が出るようにする。
+//   （編集の決まりとして、音声トラックはクリップの間を空けずに詰めて並べる。「間」は音声ファイルの中の無音で持つ）
+//   scenes: [{ sceneF, lines:[{startF,lenF}] }] → 場面ごと・セリフごとの { leadF, trailF }
+//   本編で最初のセリフだけ前に無音を足して本編の頭から始め、ほかは後ろに「次のセリフの頭まで」の無音を足す。
+export function voicePadding(scenes) {
+  const flat = [];
+  let off = 0;
+  scenes.forEach((sc, si) => {
+    sc.lines.forEach((ln, li) => flat.push({ si, li, start: off + ln.startF, end: off + ln.startF + ln.lenF }));
+    off += sc.sceneF;
+  });
+  const out = scenes.map((sc) => sc.lines.map(() => ({ leadF: 0, trailF: 0 })));
+  flat.forEach((v, k) => {
+    const next = k + 1 < flat.length ? flat[k + 1].start : off;
+    out[v.si][v.li] = { leadF: k === 0 ? v.start : 0, trailF: next - v.end };
+  });
+  return out;
+}
+export const SPEAKER_JA ={ narrator: 'ナレーション', haru: 'ハル', mina: 'ミナ先生' };
 
 // emotion → 立ち絵ファイル名（conversation.mjs と同一マップ）
 const HARU_MAP = { neutral: 'neutral', curious: 'curious', tension: 'thinking', positive_surprise: 'surprised', surprise: 'surprised', realization: 'understood', puzzled: 'worried', calm_warm: 'neutral', serious: 'worried', gentle_warning: 'worried', warm: 'happy', bright_confident: 'happy', encouraging: 'happy' };

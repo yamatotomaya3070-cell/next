@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { GUIDE_CHAPTERS, type GuideChapter } from "@/lib/guide/chapters";
-import { IconChevronRight, IconPlayCircle } from "@/components/ui/icons";
+import { IconBook, IconChevronRight, IconPlayCircle } from "@/components/ui/icons";
+import { OpsSearch } from "./OpsSearch";
 
 interface GuideIndexProps {
   /** "/guide"（利用者）または "/staff/guide"（職員） */
@@ -47,6 +48,18 @@ export function GuideIndex({ basePath, audience }: GuideIndexProps) {
       <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">
         DaVinci Resolve の操作を、実際の画面の写真で説明しています。どの動画を作るときも同じ操作なので、手順書で分からないところがあったら、ここを開いてください。
       </p>
+
+      <div className="mt-6">
+        <OpsSearch basePath={basePath} />
+      </div>
+      <Link
+        href={`${basePath}/ops`}
+        className="mt-3 inline-flex min-h-12 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-base font-bold text-primary transition hover:border-primary/40 hover:bg-primary-soft/30"
+      >
+        <IconBook className="size-5" />
+        操作辞典の一覧を見る（画面の部分ごと）
+        <IconChevronRight className="size-4" />
+      </Link>
 
       {audience === "staff" && staffOnly.length > 0 && (
         <section className="mt-8" aria-labelledby="guide-staff">

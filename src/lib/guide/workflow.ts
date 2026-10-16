@@ -35,7 +35,7 @@ export const WORK_STEPS: WorkStep[] = [
     id: "arrange",
     title: "素材を並べる",
     detail:
-      "［ワークスペース］→［スクリプト］→［絆_素材を並べる］を押すと、映像・セリフ・BGM が決まった間隔で並びます。メニューに無いときは職員の方に声をかけてください。",
+      "［ワークスペース］→［スクリプト］→［絆_素材を並べる］を押すと、映像・セリフ・BGM が順番どおりに並びます。セリフはすき間なくつながります（セリフの間（ま）は音声ファイルの中に無音として入っているので、自分で間を空けません）。メニューに無いときは職員の方に声をかけてください。",
     guide: "arrange#auto",
   },
   {
@@ -88,7 +88,7 @@ export interface WorkStepView extends WorkStep {
 const MANUAL_ARRANGE: Record<string, Pick<WorkStep, "detail" | "guide">> = {
   arrange: {
     detail:
-      "この案件は自動で並べられません。依頼内容と作業指示を見ながら、音声と映像をタイムラインに順番どおり並べます。",
+      "この案件は自動で並べられません。依頼内容と作業指示を見ながら、音声と映像をタイムラインに順番どおり並べます。間（ま）の指定が依頼内容に無ければ、セリフの音声は前のクリップの右はしにすき間なくつなげて並べます。",
     guide: "arrange#manual-voices",
   },
   subtitles: {

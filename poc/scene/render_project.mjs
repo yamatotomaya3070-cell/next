@@ -38,6 +38,12 @@ const GEN_NOTES = (process.env.GEN_NOTES || '').trim();
 const SECTION_JA = { hook: 'フック', problem: '問題提起', basics: '基礎説明', example: '具体例', dialogue: '疑問と誤解', caution: '注意点', summary: 'まとめ', cta: 'はじめ方' };
 const VOICE = { narrator: 'Charon', mina: 'Kore', haru: 'Puck' };
 
+function videoFrames(file) {
+  const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_packets', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', file], { encoding: 'utf8' });
+  const n = Number(r.stdout.trim());
+  if (!n) throw new Error(`映像のフレーム数を測れません: ${file}`);
+  return n;
+}
 function ff(args) { const r = spawnSync('ffmpeg', args, { encoding: 'utf8' }); if (r.status !== 0) { console.error(r.stderr?.slice(-800)); throw new Error('ffmpeg'); } }
 function probe(p) { const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', p], { encoding: 'utf8' }); return parseFloat(r.stdout.trim()) || 0; }
 function wrapPcmToWav(pcm, rate) {
@@ -91,13 +97,21 @@ async function main() {
   const ENDING_MP4 = 'assets/video/ending.mp4';
   const hasOpening = existsSync(OPENING_MP4);
   const hasEnding = existsSync(ENDING_MP4);
+  // 場面の映像（音なし）と音声（WAV）を別々に持ち、最後に1回だけ AAC にする。
+  // 場面ごとに AAC にしてからつなぐと、AAC の区切り（1024サンプル）に合わせて場面ごとに音が少しずつ伸び、
+  // 後ろの場面ほど声が映像（字幕）より遅れる（10場面で約0.7秒）。
   const clips = [];
+  const sceneWavs = [];
+  let bodyF = 0;
   if (!hasOpening) {
     const titleScene = { title: (project.title || '').slice(0, 20), subtitle: (project.goal || '').slice(0, 24) };
     const n = Math.round(3.0 * FPS);
     for (let i = 0; i < n; i++) await sharp(Buffer.from(buildTitleSVG(titleScene, i / FPS))).png().toFile(`${WORK}/t_${String(i).padStart(4, '0')}.png`);
-    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/t_%04d.png`, '-f', 'lavfi', '-t', '3.0', '-i', 'anullsrc=r=24000:cl=mono', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-shortest', `${WORK}/clip_000.mp4`]);
+    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/t_%04d.png`, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-frames:v', String(n), `${WORK}/clip_000.mp4`]);
+    ff(['-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-af', `atrim=end=${(n / FPS).toFixed(6)}`, '-c:a', 'pcm_s16le', `${WORK}/a_000.wav`]);
     clips.push('clip_000.mp4');
+    sceneWavs.push('a_000.wav');
+    bodyF += n;
   }
 
   for (let si = 0; si < scenes.length; si++) {
@@ -159,11 +173,13 @@ async function main() {
       if (i % 48 === 0) process.stdout.write('*');
     }
     const clip = `clip_${tag}.mp4`;
-    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/f_${tag}_%04d.png`, '-i', sceneWav,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', '-b:a', '160k', '-frames:v', String(nF), '-t', D.toFixed(6), '-movflags', '+faststart', `${WORK}/${clip}`]);
+    ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/f_${tag}_%04d.png`,
+      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-frames:v', String(nF), '-movflags', '+faststart', `${WORK}/${clip}`]);
     ff(['-y', '-framerate', String(FPS), '-i', `${WORK}/v_${tag}_%04d.png`,
       '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-crf', '20', '-an', '-movflags', '+faststart', `${WORK}/visual_assets/visual_${tag}.mp4`]);
     clips.push(clip);
+    sceneWavs.push(`a_${tag}.wav`);
+    bodyF += nF;
     // フレーム掃除（音声は残す=再開時キャッシュ）
     // bash 経由だと Windows のパス（\ や日本語）で消せず数万枚が残り、次の案件の削除が失敗する。Node で直接消す
     const isDone = (name) => name.startsWith(`f_${tag}_`) || name.startsWith(`v_${tag}_`) || name.startsWith('t_');
@@ -173,34 +189,53 @@ async function main() {
     }
   }
 
-  // 4) 本編を連結 → 本編にだけ body BGM を敷く（opening/ending は自前BGM内包＝二重掛け回避）
+  // 4) 本編を連結。映像は再エンコードせずにつなぎ、音声は WAV のままつなぐ（どちらも長さが1サンプルも変わらない）
   writeFileSync(`${WORK}/list.txt`, clips.map((c) => `file '${c}'`).join('\n') + '\n');
-  const bodyMp4 = `${WORK}/_body.mp4`;
-  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/list.txt`, '-c', 'copy', bodyMp4]);
+  const bodyV = `${WORK}/_bodyv.mp4`;
+  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/list.txt`, '-c', 'copy', bodyV]);
+  writeFileSync(`${WORK}/alist.txt`, sceneWavs.map((w) => `file '${w}'`).join('\n') + '\n');
+  const bodyWav = `${WORK}/_body.wav`;
+  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/alist.txt`, '-c', 'copy', bodyWav]);
+  const bodySec = (bodyF / FPS).toFixed(6);
+
+  // 本編にだけ body BGM を敷く（opening/ending は自前BGM内包＝二重掛け回避）。ここもまだ WAV
   const BGM = process.env.BGM_FILE || 'assets/video/bgm_classroom_body.wav';
   const bgmVol = process.env.BGM_VOL || '0.10';
-  // opening/ending(aac 44100 stereo) と concat -c copy するため、本編音声も 44100 stereo aac に揃える
-  const bodyBgm = `${WORK}/_bodybgm.mp4`;
+  const STEREO = 'aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo';
+  const bodyA = `${WORK}/_bodya.wav`;
   if (BGM.toLowerCase() !== 'none' && existsSync(BGM)) {
-    ff(['-y', '-i', bodyMp4, '-stream_loop', '-1', '-i', BGM,
-      '-filter_complex', `[1:a]volume=${bgmVol},aformat=sample_rates=44100:channel_layouts=stereo[bg];[0:a]aformat=sample_rates=44100:channel_layouts=stereo[vo];[vo][bg]amix=inputs=2:duration=first:normalize=0[aout]`,
-      '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2', '-shortest', bodyBgm]);
+    ff(['-y', '-i', bodyWav, '-stream_loop', '-1', '-i', BGM,
+      '-filter_complex', `[1:a]volume=${bgmVol},${STEREO}[bg];[0:a]${STEREO},apad,atrim=end=${bodySec}[vo];[vo][bg]amix=inputs=2:duration=first:normalize=0[aout]`,
+      '-map', '[aout]', '-c:a', 'pcm_s16le', bodyA]);
   } else {
-    ff(['-y', '-i', bodyMp4, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2', bodyBgm]);
+    ff(['-y', '-i', bodyWav, '-af', `${STEREO},apad,atrim=end=${bodySec}`, '-c:a', 'pcm_s16le', bodyA]);
   }
 
-  // 5) 固定オープニング + 本編 + 固定エンディング を最終連結（-c copy）
+  // 5) 固定オープニング + 本編 + 固定エンディング。映像は再エンコードせずにつなぎ、音声はここで1回だけ AAC にする。
+  //    オープニング/エンディングの音は、それぞれの映像の長さちょうどに切りそろえてからつなぐ
   const absPath = (p) => resolve(p).replace(/\\/g, '/');
-  const finalList = [];
-  if (hasOpening) finalList.push(OPENING_MP4);
-  finalList.push(bodyBgm);
-  if (hasEnding) finalList.push(ENDING_MP4);
-  if (finalList.length === 1) {
-    ff(['-y', '-i', bodyBgm, '-c', 'copy', OUT]);
-  } else {
-    writeFileSync(`${WORK}/final.txt`, finalList.map((p) => `file '${absPath(p)}'`).join('\n') + '\n');
-    ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/final.txt`, '-c', 'copy', OUT]);
-  }
+  const parts = [];
+  if (hasOpening) parts.push({ file: OPENING_MP4 });
+  parts.push({ file: bodyV, audio: bodyA, frames: bodyF });
+  if (hasEnding) parts.push({ file: ENDING_MP4 });
+  const vList = [];
+  const aInputs = [];
+  const aLabels = [];
+  parts.forEach((pt, k) => {
+    const frames = pt.frames ?? videoFrames(pt.file);
+    let vFile = pt.file;
+    if (!pt.audio) {
+      vFile = `${WORK}/_part${k}_v.mp4`;
+      ff(['-y', '-i', pt.file, '-an', '-c:v', 'copy', vFile]);
+    }
+    vList.push(`file '${absPath(vFile)}'`);
+    aInputs.push('-i', pt.audio ?? pt.file);
+    aLabels.push(`[${k + 1}:a]${STEREO},apad,atrim=end=${(frames / FPS).toFixed(6)}[a${k}]`);
+  });
+  writeFileSync(`${WORK}/final.txt`, vList.join('\n') + '\n');
+  const fc = aLabels.join(';') + ';' + parts.map((_, k) => `[a${k}]`).join('') + `concat=n=${parts.length}:v=0:a=1[aout]`;
+  ff(['-y', '-f', 'concat', '-safe', '0', '-i', `${WORK}/final.txt`, ...aInputs, '-filter_complex', fc,
+    '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2', '-movflags', '+faststart', OUT]);
   const dur = probe(OUT);
   console.log(`\n\n=== 完成: ${OUT} (${dur.toFixed(1)}s / 本編${clips.length}クリップ / opening=${hasOpening ? 'あり' : 'なし'} / ending=${hasEnding ? 'あり' : 'なし'} / body BGM=${existsSync(BGM) ? 'あり' : 'なし'}) ===`);
 }

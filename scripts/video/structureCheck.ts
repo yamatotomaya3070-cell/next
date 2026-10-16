@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildTrackIndex, findClipInTrack, fingerprint, type ClipMatch } from "../../src/lib/audio/fingerprint";
+import { trimSilence } from "../../src/lib/audio/trimSilence";
 import { checkVoiceStructure, type VoicePlacement } from "../../src/lib/video/inspection/structure";
 import type { CheckItem } from "../../src/lib/video/inspection/types";
 import { decodePcmMono8k } from "./pcm";
@@ -70,7 +71,8 @@ export function runStructureCheck(input: StructureCheckInput): StructureCheckRes
   const submissionIndex = buildTrackIndex(fingerprint(decodePcmMono8k(input.submissionFile, input.workdir)));
 
   const details: VoiceMatchDetail[] = voiceNames.map((name) => {
-    const clip = fingerprint(decodePcmMono8k(join("voices", name), input.workdir));
+    // 支給音声の前後には、詰めて並べるための無音がある。声の部分だけで探す（位置も声が出る位置になる）
+    const clip = fingerprint(trimSilence(decodePcmMono8k(join("voices", name), input.workdir)).samples);
     const inSample = findClipInTrack(clip, sampleIndex, { maxMatches: 1 })[0] ?? null;
     const inSubmission = findClipInTrack(clip, submissionIndex, { maxMatches: 3 });
     const nearMiss =

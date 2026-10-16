@@ -6,6 +6,8 @@
 //   2. 並べた全体の長さが、完成見本と合っている（±3フレーム以内）
 //   3. 作業指示一覧の行が、セリフの音声と1対1で合っている（字幕の文をここからコピーするため）
 //   4. 声の音量が調整済み（ピークが -2dBFS 以下。書き出しで音割れしないため）
+//   5. セリフをすき間なくつなげて並べたとき、2本目からのセリフが完成見本と同じフレームで始まる
+//      （1本目だけは音声の頭に無音があり、そのぶん後で声が出る）
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { simulateArrange, type ClipInfo } from "../../src/lib/scene/arrangeSimulation";
@@ -86,6 +88,22 @@ export function verifyPackage(pkgDir: string): VerifyReport {
     const extra = listed.filter((n) => !voiceNames.includes(n));
     if (missing.length) problems.push(`作業指示一覧に無いセリフ: ${missing.join(", ")}`);
     if (extra.length) problems.push(`作業指示一覧にあるが音声が無い: ${extra.join(", ")}`);
+  }
+
+  // 5) 詰めて並べたセリフの位置が、完成見本の声の位置と同じか（素材一覧.json に見本の位置がある）
+  const manifestFile = `${pkgDir}/素材一覧.json`;
+  if (existsSync(manifestFile)) {
+    const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as {
+      scenes: { lines: { audio: string; startAbs: number }[] }[];
+    };
+    const expectedStart = new Map(
+      manifest.scenes.flatMap((sc) => sc.lines).map((l) => [l.audio.split("/").pop()!, Math.round(l.startAbs * FPS)]),
+    );
+    const off = arranged.voice
+      .slice(1)
+      .filter((v) => expectedStart.has(v.name) && expectedStart.get(v.name) !== v.start)
+      .map((v) => `${v.name}（${v.start - expectedStart.get(v.name)!}f）`);
+    if (off.length) problems.push(`詰めて並べると見本の位置からずれるセリフ: ${off.join(", ")}`);
   }
 
   // 4) 声の音量

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   checkTelops,
   judgeTelop,
+  partialTelopSimilarity,
   normalizeTelop,
   parseTelopExpectations,
   telopSimilarity,
@@ -111,5 +112,31 @@ describe("telopSimilarity の先頭一致", () => {
   test("短い文どうしや、先頭が同じだけの短い読み取りには適用しない", () => {
     expect(telopSimilarity("はい、これは税金の話です", "はい")).toBeLessThan(0.5);
     expect(telopSimilarity("はい。", "はい、これは、税金の計算のもとになる所得から")).toBeLessThan(0.5);
+  });
+});
+
+describe("台本と比べる（カット練習の案件）", () => {
+  const line = "新NISAでは、年間で最大360万円まで投資できるようになりました。";
+
+  test("1つのセリフを2つの字幕に分けても、それぞれ台本の一部として一致する", () => {
+    expect(partialTelopSimilarity(line, "新NISAでは 年間で最大360万円まで")).toBe(1);
+    expect(partialTelopSimilarity(line, "投資できるようになりました")).toBe(1);
+  });
+
+  test("誤字が1文字あれば、一致度が少し下がる", () => {
+    const s = partialTelopSimilarity(line, "年間で最大360万円まで投資できるようになりまた");
+    expect(s).toBeGreaterThan(0.85);
+    expect(s).toBeLessThan(1);
+  });
+
+  test("台本にない文は明らかに違うと判定し、利用者への文は「台本」と言う", () => {
+    const items = checkTelops(
+      [{ voiceFile: "S01_01_ミナ先生.wav", expected: line, submissionStartSec: 12, ocrTexts: ["今日はいい天気ですね"] }],
+      { source: "台本", partial: true },
+    );
+    const text = items.find((i) => i.key === "telop_text")!;
+    expect(text.status).toBe("fail");
+    expect(text.message).toContain("台本");
+    expect(text.message).not.toContain("作業指示一覧");
   });
 });

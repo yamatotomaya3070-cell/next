@@ -168,6 +168,31 @@ export function telopSimilarity(expected: string, actual: string): number {
   return 1 - levenshtein(a, b) / max;
 }
 
+
+/**
+ * 字幕が台本の1文の「一部」でもよいときの類似度（0..1）。
+ * カット練習の案件では、長いセリフを2つの字幕に分けるので、画面に出ている字幕は台本の文の途中だけになる。
+ * 台本の文の中で、字幕といちばんよく合う同じくらいの長さの所と比べる。
+ */
+const PARTIAL_MIN_CHARS = 4;
+const PARTIAL_MIN_RATIO = 0.3;
+
+export function partialTelopSimilarity(expected: string, actual: string): number {
+  const a = normalizeTelop(expected);
+  const b = normalizeTelop(actual);
+  if (b.length === 0) return a.length === 0 ? 1 : 0;
+  // 1〜3文字の読み（話者名の切れはしなど）は、長い文のどこかと必ず合ってしまうので、文全体と比べる
+  if (b.length >= a.length || b.length < Math.max(PARTIAL_MIN_CHARS, a.length * PARTIAL_MIN_RATIO)) return telopSimilarity(expected, actual);
+  let best = 0;
+  for (const len of [b.length - 1, b.length, b.length + 1]) {
+    if (len <= 0 || len > a.length) continue;
+    for (let i = 0; i + len <= a.length; i++) {
+      const s = 1 - levenshtein(a.slice(i, i + len), b) / Math.max(len, b.length);
+      if (s > best) best = s;
+    }
+  }
+  return best;
+}
 /** OCR が話者名ラベル（字幕の上の小さい文字）まで拾ったときに取り除く */
 function stripSpeakerLabel(ocr: string, voiceFile: string): string {
   const speaker = /^S\d{2}_\d{2}_(.+?)\.wav$/i.exec(voiceFile)?.[1];
@@ -188,16 +213,25 @@ export interface TelopJudgement {
   verdict: "match" | "doubtful" | "wrong" | "missing";
 }
 
+/** 照合の仕方。カット練習の案件は台本と比べ、字幕が文の一部でもよい */
+export interface TelopCheckOptions {
+  /** 字幕の文の出どころ（利用者への文に使う）。既定は「作業指示一覧」 */
+  source?: string;
+  /** true なら、字幕が出どころの文の一部でもよい（partialTelopSimilarity で比べる） */
+  partial?: boolean;
+}
+
 /** 1セリフ分の OCR 結果（複数フレーム）を判定する */
-export function judgeTelop(obs: TelopObservation): TelopJudgement {
+export function judgeTelop(obs: TelopObservation, opts: TelopCheckOptions = {}): TelopJudgement {
+  const similarity = opts.partial ? partialTelopSimilarity : telopSimilarity;
   const candidates = obs.ocrTexts.map((t) => stripSpeakerLabel(t, obs.voiceFile)).filter((t) => normalizeTelop(t).length > 0);
   if (candidates.length === 0) {
     return { voiceFile: obs.voiceFile, expected: obs.expected, bestOcr: "", similarity: 0, verdict: "missing" };
   }
   let best = candidates[0];
-  let bestSim = telopSimilarity(obs.expected, best);
+  let bestSim = similarity(obs.expected, best);
   for (const c of candidates.slice(1)) {
-    const s = telopSimilarity(obs.expected, c);
+    const s = similarity(obs.expected, c);
     if (s > bestSim) {
       best = c;
       bestSim = s;
@@ -217,7 +251,8 @@ function listWithTime(items: TelopObservation[], max = 4): string {
 
 const shorten = (s: string, n = 24) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
-export function checkTelops(observations: TelopObservation[]): CheckItem[] {
+export function checkTelops(observations: TelopObservation[], opts: TelopCheckOptions = {}): CheckItem[] {
+  const source = opts.source ?? "作業指示一覧";
   if (observations.length === 0) {
     const unknown = (key: string, label: string): CheckItem => ({
       key,
@@ -229,7 +264,7 @@ export function checkTelops(observations: TelopObservation[]): CheckItem[] {
     return [unknown("telop_present", "字幕の入れ忘れ"), unknown("telop_text", "字幕の文")];
   }
 
-  const judged = observations.map((o) => ({ obs: o, j: judgeTelop(o) }));
+  const judged = observations.map((o) => ({ obs: o, j: judgeTelop(o, opts) }));
   const missing = judged.filter((x) => x.j.verdict === "missing");
   const wrong = judged.filter((x) => x.j.verdict === "wrong");
   const doubtful = judged.filter((x) => x.j.verdict === "doubtful");
@@ -247,7 +282,7 @@ export function checkTelops(observations: TelopObservation[]): CheckItem[] {
     message:
       missing.length === 0
         ? undefined
-        : `字幕が入っていないセリフが${missing.length}本あります（${listWithTime(missing.map((x) => x.obs))}）。作業指示一覧の文をコピーして、声と同じ長さで入れてください。`,
+        : `字幕が入っていないセリフが${missing.length}本あります（${listWithTime(missing.map((x) => x.obs))}）。${source}の文をコピーして、声と同じ長さで入れてください。`,
   };
 
   const checked = total - missing.length;
@@ -257,14 +292,14 @@ export function checkTelops(observations: TelopObservation[]): CheckItem[] {
     .join("、");
   const doubtfulDesc = doubtful
     .slice(0, 3)
-    .map((x) => `${voiceDisplayName(x.obs.voiceFile)}（一致度${Math.round(x.j.similarity * 100)}%）`)
+    .map((x) => `${voiceDisplayName(x.obs.voiceFile)}「${shorten(x.j.bestOcr)}」（一致度${Math.round(x.j.similarity * 100)}%）`)
     .join("、");
 
   const text: CheckItem = {
     key: "telop_text",
     label: "字幕の文",
     status: wrong.length > 0 ? "fail" : doubtful.length > 0 ? "unknown" : "pass",
-    expected: "作業指示一覧と同じ文",
+    expected: `${source}と同じ文`,
     actual:
       wrong.length > 0
         ? `文が違う: ${wrongDesc}${wrong.length > 3 ? ` ほか${wrong.length - 3}件` : ""}`
@@ -273,10 +308,10 @@ export function checkTelops(observations: TelopObservation[]): CheckItem[] {
           : `${checked}本すべて一致`,
     message:
       wrong.length > 0
-        ? `字幕の文が作業指示一覧と違うところがあります（${wrong
+        ? `字幕の文が${source}と違うところがあります（${wrong
             .slice(0, 3)
             .map((x) => `${voiceDisplayName(x.obs.voiceFile)}: ${formatSec(x.obs.submissionStartSec)}あたり`)
-            .join("、")}）。作業指示一覧の文をそのままコピーして貼り直してください。`
+            .join("、")}）。${source}の文をそのままコピーして貼り直してください。`
         : undefined,
   };
 

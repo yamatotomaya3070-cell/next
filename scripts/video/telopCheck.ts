@@ -7,8 +7,10 @@
 import {
   checkTelops,
   parseTelopExpectations,
+  partialTelopSimilarity,
   telopSimilarity,
   TELOP_WRONG_SIMILARITY,
+  type TelopCheckOptions,
   type TelopObservation,
 } from "../../src/lib/video/inspection/telop";
 import type { CheckItem } from "../../src/lib/video/inspection/types";
@@ -24,6 +26,10 @@ export interface TelopCheckInput {
   submissionFile: string;
   /** 作業指示一覧（CSV または Markdown 表）。無ければ照合できない */
   instructionText: string | null;
+  /** 「セリフの名前 → 字幕の文」を直接わたすとき（カット練習の案件は台本から作る）。instructionText より優先する */
+  expectations?: Map<string, string>;
+  /** 照合の仕方（台本と比べる・字幕が文の一部でもよい） */
+  options?: TelopCheckOptions;
   /** 構成照合の結果（セリフごとの提出動画内の位置と長さ） */
   voices: VoiceMatchDetail[];
   /** 各セリフ音声の長さ（秒）。name → 秒 */
@@ -45,7 +51,7 @@ function unknownItems(reason: string): CheckItem[] {
 }
 
 export async function runTelopCheck(input: TelopCheckInput): Promise<TelopCheckResult> {
-  if (!input.instructionText) {
+  if (!input.instructionText && !input.expectations) {
     const reason = "作業指示一覧が無いため字幕は確認していません";
     return { checks: unknownItems(reason), observations: [], skippedReason: reason };
   }
@@ -54,7 +60,8 @@ export async function runTelopCheck(input: TelopCheckInput): Promise<TelopCheckR
     return { checks: unknownItems(reason), observations: [], skippedReason: reason };
   }
 
-  const expectations = new Map(parseTelopExpectations(input.instructionText).map((e) => [e.voiceFile, e.text]));
+  const expectations =
+    input.expectations ?? new Map(parseTelopExpectations(input.instructionText ?? "").map((e) => [e.voiceFile, e.text]));
   if (expectations.size === 0) {
     const reason = "作業指示一覧から字幕の文を読み取れませんでした";
     return { checks: unknownItems(reason), observations: [], skippedReason: reason };
@@ -89,7 +96,7 @@ export async function runTelopCheck(input: TelopCheckInput): Promise<TelopCheckR
   // 前後の位置でもう2枚撮って確かめる（字幕の出入りの瞬間や、短いセリフで隣の字幕を読んだ場合を避ける）
   const retryIdx = targets
     .map((_, i) => i)
-    .filter((i) => firstTexts[i].trim().length === 0 || telopSimilarity(targets[i].expected, firstTexts[i]) < TELOP_WRONG_SIMILARITY);
+    .filter((i) => firstTexts[i].trim().length === 0 || (input.options?.partial ? partialTelopSimilarity : telopSimilarity)(targets[i].expected, firstTexts[i]) < TELOP_WRONG_SIMILARITY);
   if (retryIdx.length > 0) {
     const strips: Buffer[] = [];
     for (const i of retryIdx) for (const pos of RETRY_POSITIONS) strips.push(stripAt(targets[i], pos));
@@ -106,5 +113,5 @@ export async function runTelopCheck(input: TelopCheckInput): Promise<TelopCheckR
     ocrTexts: ocrTexts[i],
   }));
 
-  return { checks: checkTelops(observations), observations, skippedReason: null };
+  return { checks: checkTelops(observations, input.options), observations, skippedReason: null };
 }

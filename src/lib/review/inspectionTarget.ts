@@ -7,6 +7,8 @@ import type { TemplateAnswerData } from "@/lib/video/templates/types";
  * - template: AI動画生成パイプライン(video_jobs)の正解データ表と比べる（旧経路）
  * - sample  : 完成見本の動画(task_materials kind=sample)を実測して比べる。
  *             支給素材ZIP(kind=source_assets)があれば、セリフ音声を使った構成照合もできる。
+ * - cut_practice: カット練習の案件（支給素材が scene-raw/ にある）。見本と同じ形にはならないので、
+ *             答え（編集ポイント.json＝edit_key.json）と録ったままの声で、消し残し・切りすぎなどを見る。
  *
  * 職員のみRLSのテーブルを読むため、呼び出し側は管理クライアント（service role）を渡す。
  */
@@ -20,9 +22,18 @@ export type InspectionTarget =
       assetsPath: string | null;
       /** 作業指示一覧（字幕の文の出どころ。task_materials revision_note「作業指示一覧」の本文。無ければ null） */
       instructionText: string | null;
+    }
+  | {
+      kind: "cut_practice";
+      samplePath: string;
+      assetsPath: string;
+      /** materials バケット内の答え（消す所と残すセリフの位置） */
+      editKeyPath: string;
     };
 
 const INSTRUCTION_TITLE = "作業指示一覧";
+/** カット練習の案件の素材置き場（scripts/scene/registerSceneTask.ts の RAW_STORAGE_PREFIX） */
+const CUT_PRACTICE_PREFIX = "scene-raw";
 
 export async function loadInspectionTarget(
   admin: SupabaseClient,
@@ -59,6 +70,14 @@ export async function loadInspectionTarget(
   const sample = rows.find((m) => m.kind === "sample" && m.media_url);
   if (!sample?.media_url) return null;
   const assets = rows.find((m) => m.kind === "source_assets" && m.media_url);
+  if (assets?.media_url?.startsWith(`${CUT_PRACTICE_PREFIX}/`)) {
+    return {
+      kind: "cut_practice",
+      samplePath: sample.media_url,
+      assetsPath: assets.media_url,
+      editKeyPath: assets.media_url.replace(/[^/]+$/, "edit_key.json"),
+    };
+  }
   const instruction = rows.find((m) => m.kind === "revision_note" && m.title === INSTRUCTION_TITLE && m.content);
   return {
     kind: "sample",

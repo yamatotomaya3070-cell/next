@@ -37,12 +37,12 @@ export function machineCheckCriterion(checkResult: CheckResult): FeedbackCriteri
   const comment = checkResult.checks
     .map(
       (c) =>
-        `${c.label}: ${CHECK_STATUS_LABEL[c.status] ?? c.status}（実測: ${c.actual} / 見本: ${c.expected}）`,
+        `${c.label}: ${CHECK_STATUS_LABEL[c.status] ?? c.status}（実測: ${c.actual} / 基準: ${c.expected}）`,
     )
     .join(" / ");
   return {
     key: MACHINE_CHECK_KEY,
-    label: "見本との自動照合",
+    label: "自動チェック",
     score: Math.max(0, Math.min(5, Math.round(checkResult.autoScore / 20))),
     comment,
   };

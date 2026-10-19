@@ -10,6 +10,7 @@
  *   - template: video_jobs.answer_data（正解データ表）と比べる
  *   - sample  : 完成見本(task_materials kind=sample)を実測して比べる。
  *               支給素材ZIP(kind=source_assets)があれば、セリフ音声の構成照合も行う
+ *   - cut_practice: カット練習の案件。録ったままの声と答え（edit_key.json）で、消し残し・切りすぎなどを見る
  *
  * 検品が終わったら src/lib/review/applyInspection.ts で AI レビュー下書きへ反映し、
  * NG があれば利用者へ自動で差し戻す。
@@ -28,6 +29,8 @@ import { probeStreams, probeVolumeDb } from "./exec";
 import { runStructureCheck } from "./structureCheck";
 import { runTelopCheck } from "./telopCheck";
 import { runFrameCheck } from "./frameCheck";
+import { runCutPracticeCheck } from "./cutPracticeCheck";
+import type { EditKey } from "../scene/buildRawPackage";
 import { readZipEntries } from "./unzip";
 import { getTemplateConfig, VIDEO_TEMPLATE_TYPES } from "../../src/lib/video/templates";
 import { compareProbeToAnswer } from "../../src/lib/video/inspection/compare";
@@ -250,6 +253,31 @@ async function compareWithSample(
   return [...checks, ...structure.checks, ...telop.checks, ...frames.checks];
 }
 
+/**
+ * カット練習の案件。形式（解像度・音声の有無・音量）は見本と比べ、長さは参考にだけ見せる。
+ * 中身は見本と比べず、答え（edit_key.json）と録ったままの声で確かめる。
+ */
+async function compareWithCutPractice(
+  submissionLocal: string,
+  probe: ProbeResult,
+  target: Extract<InspectionTarget, { kind: "cut_practice" }>,
+  workdir: string,
+): Promise<CheckItem[]> {
+  const sampleLocal = await downloadTo("materials", target.samplePath, "sample.mp4", workdir);
+  const formatChecks = compareProbeToSample(probe, probeAll(sampleLocal, workdir));
+  const editKey = JSON.parse((await downloadBuffer("materials", target.editKeyPath)).toString("utf8")) as EditKey;
+  const result = await runCutPracticeCheck({
+    workdir,
+    submissionFile: submissionLocal,
+    assetsZip: await downloadBuffer("materials", target.assetsPath),
+    editKey,
+  });
+  const found = result.lines.filter((l) => l.startSec !== null).length;
+  const left = result.remnants.filter((r) => r.found.length > 0).length;
+  console.log(`  カット照合: セリフ ${found}/${result.lines.length}本を確認 / 消し残しの声 ${left}種類 / 場面の声の大きさ ${result.levels.map((l) => (l.db === null ? "-" : l.db.toFixed(1))).join(" ")}`);
+  return [...formatChecks, ...result.checks];
+}
+
 /** 支給素材ZIPの 作業指示一覧.csv（あれば） */
 function readInstructionCsv(assetsZip: Buffer): string | null {
   const entry = readZipEntries(assetsZip, (name) => /(^|\/)作業指示一覧\.csv$/.test(name))[0];
@@ -288,7 +316,9 @@ async function processJob(job: InspectionRow): Promise<void> {
     const checks =
       target.kind === "template"
         ? compareWithTemplate(probeResult, target.answerData)
-        : await compareWithSample(submissionLocal, probeResult, target, workdir);
+        : target.kind === "cut_practice"
+          ? await compareWithCutPractice(submissionLocal, probeResult, target, workdir)
+          : await compareWithSample(submissionLocal, probeResult, target, workdir);
     const checkResult: CheckResult = { checks, autoScore: computeAutoScore(checks) };
 
     // 結果を先に保存するが、status は comparing のまま。ここで落ちても次のワーカーが拾い直せる

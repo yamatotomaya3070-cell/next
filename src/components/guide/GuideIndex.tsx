@@ -39,7 +39,8 @@ function ChapterRow({ chapter, basePath }: { chapter: GuideChapter; basePath: st
 
 /** 教科書の目次。利用者には職員向けの章を出さない。 */
 export function GuideIndex({ basePath, audience }: GuideIndexProps) {
-  const learner = GUIDE_CHAPTERS.filter((c) => !c.forStaff);
+  const learner = GUIDE_CHAPTERS.filter((c) => !c.forStaff && !c.part);
+  const editing = GUIDE_CHAPTERS.filter((c) => c.part === "editing");
   const staffOnly = GUIDE_CHAPTERS.filter((c) => c.forStaff);
 
   return (
@@ -84,6 +85,22 @@ export function GuideIndex({ basePath, audience }: GuideIndexProps) {
           ))}
         </ol>
       </section>
+
+      {editing.length > 0 && (
+        <section className="mt-8" aria-labelledby="guide-editing">
+          <h2 id="guide-editing" className="text-base font-bold text-ink-soft">
+            お仕事を受けるための編集（カット・テロップ・音）
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+            どこを切るか、どう書くか、どれくらいの音量にするかを、数字と例で説明しています。
+          </p>
+          <ol className="mt-3 space-y-3">
+            {editing.map((c) => (
+              <ChapterRow key={c.slug} chapter={c} basePath={basePath} />
+            ))}
+          </ol>
+        </section>
+      )}
     </div>
   );
 }

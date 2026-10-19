@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { GUIDE_CHAPTERS, type GuideChapter, type GuideSection } from "@/lib/guide/chapters";
+import { GUIDE_CHAPTERS, type GuideChapter, type GuideExample, type GuideSection } from "@/lib/guide/chapters";
 import { getOperation, operationHref, type GuideOperation } from "@/lib/guide/operations";
 import { IconAlert, IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
 
@@ -47,6 +47,33 @@ function OpLinks({ ids, basePath }: { ids: string[]; basePath: string }) {
   );
 }
 
+/** 「直す前 → 直した後」の例 */
+function Examples({ examples }: { examples: GuideExample[] }) {
+  return (
+    <div className="mt-5 space-y-4">
+      <p className="text-[15px] font-bold text-ink">例</p>
+      {examples.map((ex, i) => (
+        <div key={i} className="rounded-xl border border-line bg-surface p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-red-50 p-3">
+              <p className="text-xs font-bold text-red-800">直す前</p>
+              <p className="mt-1 whitespace-pre-line text-[16px] leading-relaxed text-red-950">{ex.before}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-xs font-bold text-emerald-800">直した後</p>
+              <p className="mt-1 whitespace-pre-line text-[16px] leading-relaxed text-emerald-950">{ex.after}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">
+            <span className="font-bold text-ink">なぜ：</span>
+            {ex.why}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SectionBlock({ section, basePath }: { section: GuideSection; basePath: string }) {
   return (
     <section id={section.id} aria-labelledby={`${section.id}-h`} className="scroll-mt-6 border-t border-line pt-8">
@@ -67,6 +94,8 @@ function SectionBlock({ section, basePath }: { section: GuideSection; basePath: 
           </li>
         ))}
       </ol>
+
+      {section.examples && section.examples.length > 0 && <Examples examples={section.examples} />}
 
       {section.download && (
         <a

@@ -11,7 +11,9 @@ import { generateVideoProject } from "@/lib/scene/generate";
 import { validateVideoProject } from "@/lib/scene/validate";
 import { HEARTBEAT_MS } from "@/lib/scene/stepFailure";
 import { SCENE_JOB_STATUS_LABELS, type SceneJob, type SceneJobStatus } from "@/lib/types";
-import { registerSceneTask } from "./registerSceneTask";
+import { registerRawSceneTask, registerSceneTask } from "./registerSceneTask";
+import { buildRawPackage, rawPackageSummary } from "./buildRawPackage";
+import { verifyPackage } from "./verifyPackage";
 import { logLine, runStep, StepError } from "./runStep";
 
 // ローカル開発では .env.local を読む（tsx直接実行では自動読込されないため）。
@@ -26,6 +28,8 @@ if (existsSync(".env.local")) {
 const WORKER_ID = `${hostname()}:${process.pid}`;
 const POLL_MS = Number(process.env.SCENE_WORKER_POLL_MS ?? 15000);
 const OUT_ROOT = "poc/scene/out";
+// 作る案件の形。raw＝録ったままの声を受講者が切って仕上げる（既定）／legacy＝素材が自動で並ぶ以前の形
+const PACKAGE_MODE = process.env.SCENE_PACKAGE_MODE === "legacy" ? "legacy" : "raw";
 // レンダ中の作業ファイル（1案件で数万枚のフレームPNG）は OneDrive 等の同期フォルダ外に置く。
 // プロジェクトが OneDrive 配下にあると、同期中のファイルを消せず EPERM で案件が失敗する。
 const WORK_ROOT = (process.env.SCENE_WORK_ROOT || join(tmpdir(), "kizuna-scene")).replace(/\\/g, "/");
@@ -79,6 +83,7 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
   const projectPath = `${dir}/project.json`;
   const videoPath = `${dir}/sample.mp4`;
   const pkgDir = `${dir}/package`;
+  const rawDir = `${dir}/package_raw`;
   rmSync(dir, RM_OPTS);
   mkdirSync(dir, { recursive: true });
 
@@ -123,18 +128,26 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
   await setStatus(client, job.id, "building_materials", 60);
   await runScript("素材の書き出し", ["poc/scene/build_materials.mjs", projectPath, pkgDir], { ...workEnv, SAMPLE_VIDEO: videoPath });
 
-  // 4) 手順書・依頼書・タイムライン・チェックリスト生成
+  // 4) 依頼書などの文を作る
   await setStatus(client, job.id, "building_manual", 78);
-  await runScript("手順書の作成", ["poc/scene/build_manual.mjs", pkgDir]);
-  await runScript("依頼書・作業指示一覧の作成", ["poc/scene/build_app_task.mjs", pkgDir]);
-
-  // 5) 案件として登録
-  await setStatus(client, job.id, "registering_task", 88);
-  const { taskId, artifacts } = await registerSceneTask(client, {
-    pkgDir,
-    staffId: job.created_by,
-    difficulty: job.difficulty,
-  });
+  let registered: Awaited<ReturnType<typeof registerSceneTask>>;
+  if (PACKAGE_MODE === "raw") {
+    // カット練習の形：まず自動で並べる形が見本どおりに組めることを確かめてから（素材の取り違えを防ぐ）、
+    // 1文ずつの声を「録ったままの声」に作りかえる。関門は作業指示一覧（app_task.json）も見るので、先に作る
+    await runScript("作業指示一覧の作成（元の素材の確認用）", ["poc/scene/build_app_task.mjs", pkgDir]);
+    const check = verifyPackage(pkgDir);
+    console.log(`  元の素材OK: セリフ ${check.voices}本`);
+    const { key } = buildRawPackage(pkgDir, rawDir, job.id);
+    console.log(`  カット練習の素材OK: ${rawPackageSummary(key)}`);
+    await setStatus(client, job.id, "registering_task", 88);
+    registered = await registerRawSceneTask(client, { pkgDir: rawDir, staffId: job.created_by, difficulty: job.difficulty });
+  } else {
+    await runScript("手順書の作成", ["poc/scene/build_manual.mjs", pkgDir]);
+    await runScript("依頼書・作業指示一覧の作成", ["poc/scene/build_app_task.mjs", pkgDir]);
+    await setStatus(client, job.id, "registering_task", 88);
+    registered = await registerSceneTask(client, { pkgDir, staffId: job.created_by, difficulty: job.difficulty });
+  }
+  const { taskId, artifacts } = registered;
 
   await client
     .from("scene_jobs")

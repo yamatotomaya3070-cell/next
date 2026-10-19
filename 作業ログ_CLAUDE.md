@@ -504,3 +504,85 @@ PC依存:
 
 - docs/残タスク_2026-09-25.md に現状の残タスクをまとめた。区分は ①運用開始に必要なこと（常駐PCの決定・セットアップ・通し確認）②検品の残り（相続税2件の計測、本番テスト提出の後始末、新形式見本での映像照合の改善案）③動画生成ワーカー（多重起動対策・シーン並列化）④9/18からの持ち越し（はじめに.txt・6章テロップ文言・プリセットXML・Astra6の2件・フェーズ3/4）⑤確認待ち（職員ダッシュボードの未コミット変更）
 - 最優先は常駐PCの決定とセットアップ。ここが済まないと動画生成も検品も動かない
+
+## 2026-10-06 提出アップロード不具合とプリセット軽量化（Claude、4bef9b6 本番反映）
+- 症状: 検品者が提出できない（前回は名前変更で通った／今回は無反応）。原因: Supabase Storage の1ファイル上限 50MB（無料プラン）。本番で 60MB を送ると 24 秒後に 413 "The object exceeded the maximum allowed size"、14MB は 8 秒で成功を確認（テストファイルは削除済み）。旧プリセットは Rate Control=品質/最高で約10MB/分 → iDeCo(5.5分)は約57MBでプリセットを使っても送れなかった。プリセット未導入PCではさらに大きい。
+- 対応: SubmitForm で選択時に大きさチェック・失敗理由の表示・例外時も無反応にしない（src/lib/submissions/uploadCheck.ts、上限は NEXT_PUBLIC_SUBMISSION_MAX_MB、既定50）。
+- 絆_YouTube_720p.xml を Resolve 実機で作り直し: 映像 CBR 600kbps（encoder_command_param_map rc=cbr, bitrate=600）・音声 AAC 128kbps。保存先・ファイル名(新NISA_完成動画)の焼き込みを外し RecordPrefix=完成動画。新NISA見本(3:20)で 31.7MB→14.8MB、見た目の差なし。約4.4MB/分＝約11分まで50MBに収まる。
+- 絆_素材を並べる.lua: プリセットが既にあっても DeleteRenderPreset→ImportRenderPreset で毎回入れ直す（実機で del/imp/load true 確認）。05_テンプレート・DaVinci自動編集_抜粋・このPCの Scripts/Utility に反映、旧XMLは 05_テンプレート の親に .bak。セットアップZIP再作成。
+- 教科書: 9章プリセット無しの手動設定にビットレートを追記、10章に「10/6より前に準備したPCはもう一度」。
+- Resolve 操作メモ: 無料版は fuscript の外部スクリプト不可。コンソールの Lua は io 不可・日本語パスの dofile 不可・LoadProject の切り替えでクラッシュ。VideoQuality は SetRenderSettings で受け付けない（v21）→ デリバー画面で手動設定し SaveAsNewRenderPreset、resolve:ExportRenderPreset(name, path) は path をフォルダとして作りその中に xml を出す。
+
+## 2026-10-09 Mac検証用ZIP: .lua をダブルクリックして「開くアプリケーションがない」
+- 原因: .lua は DaVinci の［ワークスペース］→［スクリプト］から動かすもので、Finder でダブルクリックすると関連アプリが無いため出る（故障ではない）
+- 対応: Mac検証用_セットアップ/kizuna_davinci_setup_mac/はじめに読んでください.txt に「ダブルクリックしない・メニューから動かす・出ないときはセットアップやり直し」を追記。zipFolder.ts で kizuna_davinci_setup_mac.zip を作り直し、展開して8ファイルと追記を確認
+- 追記: Windowsで作ったZIPは .command の実行権が落ち、Macでダブルクリックすると「アクセス権がない」になるため、手順をターミナル必須にしていた。zipFolder.ts で .command/.sh にだけ Unix 755 の印を付けるよう変更（ほかのZIPは今までどおり）。はじめに読んでください.txt を「ダブルクリック→止められたら［プライバシーとセキュリティ］→［このまま開く］→予備でターミナル」に書き換え、ZIPを作り直した。.command に 100755 が付いていることを確認。Mac 実機でのダブルクリック確認はまだ
+- 10-09 教科書の「［エフェクト］→［タイトル］」表記を画像（g_screen_map ほか）に合わせて修正: 実画面ではエフェクトの欄の左の一覧に［タイトル］が独立して並ぶため、「左下のエフェクトの欄で、左の一覧の［タイトル］を押す」に統一。第1章④に「欄が無いときは左上の魔法の杖」を追記。chapters.ts / workflow.ts、未コミット・未デプロイ
+- 10-09〜10 第1章に節 titles「字幕の型（タイトル）の出し方」＋画像 g_find_title.jpg（g_screen_map の④を切り出し2倍、赤枠①タイトル②検索③絆の型）。4a02691 で push、Vercel 本番 Ready。「魔法の杖でエフェクトの欄が出る」は実機未確認
+- 10-10 第10章 setup を再構成（d6062b9、本番 Ready・本文を Chrome で確認）: bat（Windows）／mac（public/guide/setup/kizuna_davinci_setup_mac.zip 14KB をダウンロード、手順と「止められたとき」）／check-titles（g_find_title）／check-script（arrange_menu）。Mac 実機での確認はまだ
+
+## 2026-10-13 提出動画の自動削除（Claude、77a15f7 本番 Ready）
+- 背景: 11分超の50MB問題は「案件を10分以内にする」で当面回避。残る課題は Supabase 無料の Storage 全体1GB（10/13時点 submissions 128MB・materials 122MB）。提出1本25〜45MBで、消す処理が無かった
+- 対応: src/lib/submissions/retention.ts と /api/cron/cleanup-submissions（vercel.json 毎日 18:00 UTC＝03:00 JST、CRON_SECRET 必須で無ければ401）。消す対象は ①確認（feedback approved。AI自動差し戻しは reviewed_at が空なので created_at）から30日 ②出し直しで置きかわった古い版（新しい版の提出から30日）③どの提出にも結びつかず7日たったファイル。消した提出は file_path=null（記録は残す）、職員のレビュー画面は「保存期間を過ぎたため削除」と表示
+- 本番データで事前確認: ①②は0本、③は7月・9月のテスト残り2本（計36MB）→ 初回の Cron で消える。外部から叩くと401を確認
+
+## 2026-10-13 検品ワーカーを GitHub Actions へ
+
+- 常駐PCが無く、10-09の提出が検品待ちのまま止まっていた。
+- `.github/workflows/inspect-submissions.yml` を追加（1d8ef9c、push済み）。10分ごとに検品待ちがあるかだけ確かめ、あるときだけ `scripts/video/inspect-worker.ts` を1回流す。公開リポジトリなので無料。
+- GitHub の Secrets に NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GEMINI_API_KEY を登録（ユーザー実行）。
+- 手動実行（run 38350462150）で止まっていた1件が完了（自動採点70点。職員が確定済みだったため判定には反映せず）。
+- 常駐PCが必要なのは案件生成（scripts/scene/worker.ts）だけになった。
+
+## 2026-10-15 利用者検品（廣田さん）のフィードバック対応（6cd5dc4 本番反映）
+- 方針（ユーザー決定）: 自動化の範囲（セリフ配置を手作業にするか）以外は全部直す。テロップの動きは「DaVinci の操作でできるものだけ」。結果の外部通知（メール/LINE）は不要。Mac は優先度低。
+- 提出: AI採点を next/server の after() に移し（tasks/[id] に maxDuration=300）、押してすぐ「提出できました」。XHR で Storage へ直接送り %表示（src/lib/submissions/uploadWithProgress.ts）。1分以内の同じファイルの押し直しは成功扱い、別ファイルは待ってもらう。file_path が {利用者ID}/{割当ID}/ で始まるか確認を追加。
+- 結果の知らせ: TaskPageRefresher（結果待ちは最初10分20秒ごと→2分ごとに router.refresh、署名URLは45分で更新。職員の reviews / tasks/[id] にも）。TaskTabs に「新着」とバナー（localStorage seen-feedback:<割当ID>）。
+- 自動判定: 完成尺は max(2秒, 見本の2%)＋短い/長いの直し方メッセージ。セリフ音声は、基準未満でもカバー率0.85以上かつ前後のセリフから予想される位置±1秒なら「入っている」、それ以外の見つけ損ない候補（短い・見本でも弱い・ゆるい基準で一致）は職員確認（unknown）。提出側スコアをワーカーのログに出す。
+  - 実データ: 廣田さんの 10-09 提出は29本すべて入っていたが、書き出しで提出側のスコアが一様に 0.20〜0.41 に下がり10本が基準0.25未満 → 新ロジックで 28本OK・1本職員確認。提出のセリフ位置は後ろほど早く（最後で0.8秒）、旧スクリプトのずれを裏付け。
+- 作業時間: 秒で記録（work-seconds:<id>、旧 work-minutes も読む）、30分以上画面に戻らなかったら「休憩していましたか？」。目安の3倍超は評価に使わない（plausibleWorkMinutes）。mock/gemini とも時間で減点しない。
+- タイミング: 完成見本(timing.mjs frameSchedule / render_project)・絆_素材を並べる.lua・arrangeSimulation.ts をフレーム整数（頭10・間7・終わり12）に統一。lua の endFrame は「含まない」なので length に（1フレームの黒い隙間の原因）。映像がセリフより短い場面は verifyPackage で止める。作業指示一覧（CSV・アプリ表）に「空ける間」「置く位置（01:00:00:00 起点のタイムコード）」。
+- 見本の動き: テロップは 8フレームのフェードインだけ（拡大の動きは DaVinci で同じに作る手順が無いので削除）、2つ目のセリフの頭から（以前は +0.3秒）。字幕のフェードを削除し、セリフの間は字幕なし（以前は間に最後のセリフの字幕が出ていた）。
+- 教科書: arrange#manual-timing、telop#fade、背景の帯の作り方、export#submit（提出後の流れ）、setup#mac-font、補足欄の誤記を修正。依頼書から編集ルールを外して納品仕様だけに。
+- Mac: 字幕の型を Hiragino Sans W6 に（Mac検証用_セットアップ側、buildSetupZip.ts が Mac 用 ZIP も作る）。Mac 実機では未確認。
+- 既存4案件（新NISA 56ec5dab / iDeCo 247d0734 / 相続税 77f29a8b・edb85915）は scripts/scene/rebuildSceneTask.ts（前の声を+3dBで戻して再レンダ→同じパスに上書き）で作り直し中。
+- 未確認: DaVinci 実機での「絆_素材を並べる」（endFrame=length で隙間0になるか）とフェードハンドル手順、Mac フォント。利用者PCはセットアップZIPの入れ直しが必要。
+
+## 2026-10-16 追加指摘への対応（d756b16）
+
+- 指摘: 教科書が「見本のように」とざっくりで、プリセット前提。音声トラックに隙間があるのは編集の常識に反する。完成尺2%の根拠は？ 自動判定の中身は？
+- セリフ音声: 支給音声に「次のセリフの頭まで」の無音を入れ（timing.mjs voicePadding、48kHz・1/4フレームの余白つき）、タイムラインでは詰めて並べる決まりに変えた。lua・arrangeSimulation・作業指示一覧（「空ける間」列を削除、「声が出る位置」に）・手順書も同じ決まりにした。verifyPackage に「詰めて並べた位置が見本の声の位置と同じか」の照合を足した。
+- 見本の音ずれ: 場面ごとに AAC にして -c copy でつないでいたため、場面ごとに声が約0.06秒遅れていた（新NISA の終わりで0.7秒）。WAV のままつなぎ、最後に1回だけ AAC にするように変えた。3場面の試作でずれは ±0.016秒以内になった。
+- 検品: 支給音声の前後の無音を切ってから指紋で探す（trimSilence）。完成尺は参考表示にし、合否は決めない。切れ・余りは末尾のエンディング照合で見る。
+- 教科書: 操作辞典71項目（src/lib/guide/ops）と検索（/guide、/guide/ops）を追加した。サブエージェントが作成。Ver.21 実機の表記は未確認。
+- rebuildSceneTask に --reuse-sample を足した。無音を足した音声からは、素材一覧.json の pad で声だけに戻す。
+- 4案件の見本を作り直して入れ替える処理は、10-16 11:40ごろから1本ずつ流している。
+
+## 2026-10-19 作業PCで止まった理由を出す（a61151f）
+- 見本の作り直しが止まった件：止めたのは Claude Code のメモリ監視（バックグラウンド処理を自動で止める）。アプリや作業PCの不具合ではない。このPCは全体15.8GB・空き1〜3GB。
+- scripts/scene/runStep.ts：工程を動かし、エラー出力の最後20行・終了コード/強制終了・PC名・空きメモリを1つの文にまとめる（文は src/lib/scene/stepFailure.ts）。
+- worker.ts：エラーを scene_jobs.error に保存。処理中は1分ごとに locked_at を更新。記録は 一時フォルダ/kizuna-scene/scene-worker.log。
+- 職員画面 /staff/scene：止まった工程・作業PC名・エラー文を表示。5分連絡がなければ「作業PCから連絡がありません」と出す。
+- rebuildSceneTask.ts：出力フォルダに 作り直しの記録.txt を残す。
+- 作業PCへの反映は「更新（職員用）.bat」（git pull）。
+
+## 2026-10-19 教材の方向転換（実案件を受けられるレベルへ）と教科書の追加（Claude、未コミット）
+- 社内決定: 自動配置で編集工程が無いのは目的に合わない。カット・テロップ・BGM/効果音を受講者が自分でやる形へ。実写素材は用意できない → 合成音声の解説動画（今の生成ラインから自動配置を外す）を主力にする。最初はカット・テロップ・BGM/効果音・声の調整まで。AI検品は誤字・音量・沈黙などの機械的な確認、出来の良し悪しは職員。レベル分けは必須ではない。
+- 教科書に「お仕事を受けるための編集」5章を追加（src/lib/guide/editingChapters.ts、第12〜16章：cut / telop-make / bgm-se / voice / final-check）。数字の目安と「直す前→直した後→なぜ」の例（GuideSection.examples、GuideChapterView の Examples）。目次は GuideChapter.part="editing" で別のまとまり。第10・11章は番号で案内しているので番号を変えない（テストで固定）。
+- 未対応: 素材生成（フィラー・言い直し・長い沈黙入りの音声）、lua 自動配置の廃止、作業の流れ（workflow.ts）、AI検品の作り直し。教科書の DaVinci 表記（ノーマライズの窓など）は Ver.21 実機で未確認。
+- tsc・eslint・vitest（guide 44件）通過。/local-preview/guide/cut の表示を Chrome で確認。
+
+## 2026-10-19 午後：方向転換の①〜③を実装（Claude、未コミット・未デプロイ）
+- ① 練習素材（カット練習の形）: scripts/scene/buildRawPackage.ts が、今までの素材パッケージ（build_materials の出力）から「場面ごとに1本の録ったままの声」（S01_収録.wav、24kHz）を作る。計画は src/lib/scene/rawTakes.ts（案件IDを種にした乱数。言いよどみ28%・言い直し12%・長い沈黙18%＋最低数、1場面だけ -7dB、録り始め／終わりの声、部屋の小さな雑音）。言いまちがえは「最初のひと区切りの途中」で止める（文の切れ目で止まると不自然だった。Gemini の書き起こしで確認）。
+  - 消す声は assets/voice_ng（genNgVoices.ts、Gemini TTS で3人×9種、書き起こしで全部正しいことを確認）。効果音は assets/se（genSoundEffects.ts、ffmpeg で合成＝使う決まりの心配なし）。BGM 候補は bgm_classroom_body / bgm_opening の2曲。
+  - 配る物: 素材/音声・映像（＋オープニング／エンディング）・静止画（各場面の最後の1枚）・立ち絵・BGM・効果音、台本.txt、はじめに.txt。配らない物: 完成見本.mp4、編集ポイント.json（答え）。
+  - 登録: registerRawSceneTask（置き場は scene-raw/<taskId>/、edit_key.json も置く。ZIP 50MB 超は登録前に止める）。worker.ts は既定でこの形（SCENE_PACKAGE_MODE=legacy で以前の形）。元パッケージの verifyPackage を通してから作りかえ、verifyRawPackage で関門。
+- ② アプリ: src/lib/tasks/taskMode.ts（scene-raw/ → cut_practice）。workflow.ts の RAW_WORK_STEPS（13手順、教科書12〜16章へ）。台本は task_materials kind=script。依頼書は rawAppTask.ts。
+- ③ 検品: inspectionTarget に cut_practice。scripts/video/cutPracticeCheck.ts＋src/lib/video/inspection/cutPractice.ts（セリフの欠け・順番・消し残し・長い間・声の大きさのばらつき）、字幕は台本と部分一致（telop.ts の partialTelopSimilarity / options）。
+  - まね提出3本（よい編集＋BGM＋AAC／何もしない／一部だけ）で全項目が期待どおり。消し残しは一致0.35以上で探し0.5以上を確定（見まちがい0.31・本物0.40〜1.33）。声の大きさは「提出−収録＋下げた分」の場面中央値で比べる（単純な大きさだと正しい編集でも4.1dB差が出た）。
+  - 字幕の誤字は機械で見ない: Gemini の文字認識が読みながら直す（「布い」→「怖い」、「株投資」→「株式投資」）ため。字幕なし・明らかに違う文だけ。
+  - 「見本との自動照合」の表記を「自動チェック」「基準」に（applyInspection・staff/reviews・chapters 第11章）。
+- 試し用: ../テスト用_カット練習パッケージ_新NISA（職員用フォルダに完成見本・答え・消す所の一覧.txt）。
+- 未対応・要確認: ④職員と利用者での通し試し、DaVinci 実機での操作確認、本番DBで案件を1件作る E2E、assets/voice_ng・assets/se のコミット（作業PCは git pull で受け取るため必須）、会話場面の映像は口・表情の動きが見本の間に合わせてあるので、切り方によっては少しずれる。
+- tsc・eslint・vitest 319件・next build 通過。
+- コードレビュー（code-reviewer）の指摘を反映: [HIGH] 既定のカット練習の形で、元パッケージの関門（verifyPackage）が app_task.json を要るのに作っていなかった → worker の raw 分岐で build_app_task.mjs を先に実行（09-18 のパッケージの複製で「app_task.json がありません」が出なくなったことを確認）。[MEDIUM] 部分一致は4文字かつ台本の3割以上の読みだけ／消し残しは小さく録った場面以外の声で探す／登録が途中で失敗したら案件・素材・ファイルを消す。[LOW] 答えの形を先に確かめる。

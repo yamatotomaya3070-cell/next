@@ -33,6 +33,7 @@ import { FeedbackView } from "./FeedbackView";
 import { WorkSteps } from "@/components/work/WorkSteps";
 import { TaskPageRefresher } from "@/components/TaskPageRefresher";
 import { getWorkSteps } from "@/lib/guide/workflow";
+import { taskModeOf } from "@/lib/tasks/taskMode";
 import {
   pickChecklistItems,
   pickDownloadableMaterials,
@@ -114,11 +115,8 @@ export default async function TaskDetailPage({
   const requestDoc = materials.find((m) => m.kind === "request_doc");
   const script = materials.find((m) => m.kind === "script");
   const instructionSheet = pickInstructionSheet(materials);
-  // 「YouTube動画生成」で作った案件の素材だけが［絆_素材を並べる］の決まりに合う
-  // （登録前に scripts/scene/verifyPackage.ts で、見本どおりに並ぶことを確かめてある）
-  const autoArrange = materials.some(
-    (m) => m.kind === "source_assets" && m.media_url?.startsWith("scene-nisa/"),
-  );
+  // 支給素材の置き場所で、作業の流れ（自動で並ぶ／録ったままの声を切る／自分で並べる）を決める
+  const mode = taskModeOf(materials);
   // 支給素材は常に、完成見本は職員の設定（提出前から公開 / 提出後に公開）に従って配布する
   const downloadable = pickDownloadableMaterials(
     materials,
@@ -210,7 +208,7 @@ export default async function TaskDetailPage({
       content: (
         <div className="space-y-5">
           <WorkSteps
-            steps={getWorkSteps("/guide", { autoArrange })}
+            steps={getWorkSteps("/guide", { autoArrange: mode === "auto_arrange", cutPractice: mode === "cut_practice" })}
             assignmentId={assignment.id}
             readAloudEnabled={profile.read_aloud_enabled}
           />

@@ -277,7 +277,7 @@ export default async function ReviewsPage() {
                 <div className="mt-4 border-t border-line pt-4 text-sm">
                   <p className="flex flex-wrap items-center gap-2 font-bold text-ink-soft">
                     <IconVideo className="size-4" />
-                    見本との自動照合（機械検品）
+                    自動チェック（機械検品）
                     {inspection?.status === "completed" && inspection.check_result && (
                       <StatusBadge
                         label={`自動採点 ${inspection.check_result.autoScore}点`}
@@ -316,7 +316,7 @@ export default async function ReviewsPage() {
                             <StatusBadge label={badge.label} tone={badge.tone} size="sm" />
                             <span className="font-medium text-ink">{c.label}</span>
                             <span className="text-ink-soft">
-                              実測: {c.actual} / 見本: {c.expected}
+                              実測: {c.actual} / 基準: {c.expected}
                             </span>
                           </li>
                         );

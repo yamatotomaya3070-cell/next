@@ -4,6 +4,8 @@
  * 画像は public/guide/img、操作動画は public/guide/video に置く。
  */
 
+import { EDITING_CHAPTERS } from "./editingChapters";
+
 export interface GuideMark {
   /** 画像の赤い番号 */
   n: number;
@@ -14,6 +16,14 @@ export interface GuideStep {
   text: string;
   /** キー操作などの補足 */
   hint?: string;
+}
+
+/** 「直す前 → 直した後」の例。どこをどう判断するかを具体的に見せる */
+export interface GuideExample {
+  before: string;
+  after: string;
+  /** なぜそう直すか */
+  why: string;
 }
 
 export interface GuideSection {
@@ -27,6 +37,7 @@ export interface GuideSection {
   download?: { href: string; label: string; size: string };
   /** この節に関係する操作辞典の項目 id（operations.ts）。節の下に「辞典で見る」リンクが出る */
   ops?: string[];
+  examples?: GuideExample[];
 }
 
 export interface GuideChapter {
@@ -36,6 +47,8 @@ export interface GuideChapter {
   summary: string;
   /** 職員向けの章（利用者の一覧では後ろに回す） */
   forStaff?: boolean;
+  /** "editing"：案件を受けるための編集の考え方の章（カット・テロップ・音）。目次では別のまとまりに出す */
+  part?: "editing";
   /** 操作動画（ナレーション付き）。未収録なら undefined */
   video?: { src: string; poster?: string };
   sections: GuideSection[];
@@ -884,7 +897,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
         steps: [
           { text: "タスクバーに「絆ワーカー（YouTube動画生成）」「絆ワーカー（提出動画の検品）」という黒い窓が2つ最小化で出ています。どちらも閉じないでください（閉じるとそのワーカーが止まります）" },
           { text: "職員メニューの「YouTube動画生成」でテーマを登録すると、一覧の「待機中」が数分で進み、5〜6分で「完了」になって案件一覧に現れます" },
-          { text: "利用者が動画を提出すると、「提出物レビュー」の「見本との自動照合（機械検品）」に数分で結果が出ます（5分の動画で5分前後）。明らかな間違いがあれば、利用者へは自動で差し戻されています" },
+          { text: "利用者が動画を提出すると、「提出物レビュー」の「自動チェック（機械検品）」に数分で結果が出ます（5分の動画で5分前後）。明らかな間違いがあれば、利用者へは自動で差し戻されています" },
           { text: "パソコンを再起動しても、ワーカーは自動で立ち上がります（スタートアップに登録済み）" },
         ],
       },
@@ -907,6 +920,7 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       },
     ],
   },
+  ...EDITING_CHAPTERS,
 ];
 
 export function getGuideChapter(slug: string): GuideChapter | undefined {

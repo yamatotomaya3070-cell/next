@@ -49,3 +49,31 @@ describe("getWorkSteps", () => {
     }
   });
 });
+
+describe("カット練習の案件の作業の流れ", () => {
+  const steps = getWorkSteps("/guide", { autoArrange: false, cutPractice: true });
+
+  it("カット → 映像 → 声 → 字幕・テロップ → BGM・効果音 → 書き出しの順に並ぶ", () => {
+    const order = steps.map((s) => s.id);
+    const idx = (id: string) => order.indexOf(id);
+    expect(idx("cut")).toBeLessThan(idx("video"));
+    expect(idx("video")).toBeLessThan(idx("subtitles"));
+    expect(idx("subtitles")).toBeLessThan(idx("bgm"));
+    expect(idx("bgm")).toBeLessThan(idx("export"));
+    expect(order[order.length - 1]).toBe("submit");
+  });
+
+  it("自動で並べるスクリプトや作業指示一覧には頼らない", () => {
+    for (const s of steps) {
+      expect(s.detail, s.id).not.toContain("絆_素材を並べる");
+      expect(s.detail, s.id).not.toContain("作業指示一覧");
+    }
+  });
+
+  it("どのステップも、実在する教科書の章と節につながる", () => {
+    for (const s of steps) {
+      expect(s.chapter, s.id).not.toBeNull();
+      expect(s.href, s.id).toBe(`/guide/${s.guide}`);
+    }
+  });
+});

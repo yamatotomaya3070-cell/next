@@ -4,14 +4,15 @@
 //   使い方: npm run scene:worker            （1回だけ全pendingを処理）
 //           npm run scene:worker -- --watch  （常駐してポーリング）
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { hostname, tmpdir } from "node:os";
+import { freemem, hostname, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateVideoProject } from "@/lib/scene/generate";
 import { validateVideoProject } from "@/lib/scene/validate";
-import type { SceneJob, SceneJobStatus } from "@/lib/types";
+import { HEARTBEAT_MS } from "@/lib/scene/stepFailure";
+import { SCENE_JOB_STATUS_LABELS, type SceneJob, type SceneJobStatus } from "@/lib/types";
 import { registerSceneTask } from "./registerSceneTask";
+import { logLine, runStep, StepError } from "./runStep";
 
 // ローカル開発では .env.local を読む（tsx直接実行では自動読込されないため）。
 // Docker本番では docker-compose の env_file(.env) で環境変数が渡るため、無くてもよい。
@@ -32,6 +33,8 @@ const WORK_DIR = `${WORK_ROOT}/work`;
 const VOX_DIR = `${WORK_ROOT}/vox`;
 // 同期ソフトやウイルス対策が一瞬ファイルを掴んでいても消せるように、少し待って再試行する
 const RM_OPTS = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 } as const;
+// このPCでの処理の記録。止まった理由はアプリの画面にも出すが、PCにも残して後から見られるようにする
+const LOG_FILE = `${WORK_ROOT}/scene-worker.log`;
 
 function sb(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -39,12 +42,25 @@ function sb(): SupabaseClient {
   });
 }
 
-function runScript(args: string[], env: Record<string, string> = {}) {
-  const r = spawnSync("node", args, {
-    stdio: "inherit",
-    env: { ...process.env, ...env },
-  });
-  if (r.status !== 0) throw new Error(`スクリプト失敗: node ${args.join(" ")}`);
+function runScript(step: string, args: string[], env: Record<string, string> = {}) {
+  return runStep(step, "node", args, { env, logFile: LOG_FILE });
+}
+
+/** 工程の外で起きたエラー（AI生成・DB など）にも、PC名と工程名を付ける */
+function describeOtherError(e: unknown, stage: SceneJobStatus | null): string {
+  if (e instanceof StepError) return e.message;
+  const msg = e instanceof Error ? e.message : String(e);
+  const where = stage ? SCENE_JOB_STATUS_LABELS[stage] : "準備";
+  const mem = `${Math.round(freemem() / 1048576)}MB / 全体 ${Math.round(totalmem() / 1048576)}MB`;
+  return [`【${where}】で止まりました（作業PC: ${hostname()}）`, `エラー: ${msg}`, `止まったときの空きメモリ: ${mem}`].join("\n");
+}
+
+/** 処理中は1分ごとに locked_at を更新する。途絶えたら画面に「作業PCから連絡がない」と出る */
+function startHeartbeat(client: SupabaseClient, id: string) {
+  const timer = setInterval(() => {
+    void client.from("scene_jobs").update({ locked_at: new Date().toISOString() }).eq("id", id);
+  }, HEARTBEAT_MS);
+  return () => clearInterval(timer);
 }
 
 async function setStatus(
@@ -101,16 +117,16 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
   rmSync(VOX_DIR, RM_OPTS);
   rmSync(WORK_DIR, RM_OPTS);
   const workEnv = { SCENE_WORK_DIR: WORK_DIR, SCENE_VOX_DIR: VOX_DIR, SCENE_VISUAL_ASSET_DIR: `${WORK_DIR}/visual_assets` };
-  runScript(["poc/scene/render_project.mjs", projectPath, videoPath], { ...workEnv, ...(genNotes ? { GEN_NOTES: genNotes } : {}) });
+  await runScript("完成見本の書き出し", ["poc/scene/render_project.mjs", projectPath, videoPath], { ...workEnv, ...(genNotes ? { GEN_NOTES: genNotes } : {}) });
 
   // 3) no-telop素材の書き出し
   await setStatus(client, job.id, "building_materials", 60);
-  runScript(["poc/scene/build_materials.mjs", projectPath, pkgDir], { ...workEnv, SAMPLE_VIDEO: videoPath });
+  await runScript("素材の書き出し", ["poc/scene/build_materials.mjs", projectPath, pkgDir], { ...workEnv, SAMPLE_VIDEO: videoPath });
 
   // 4) 手順書・依頼書・タイムライン・チェックリスト生成
   await setStatus(client, job.id, "building_manual", 78);
-  runScript(["poc/scene/build_manual.mjs", pkgDir]);
-  runScript(["poc/scene/build_app_task.mjs", pkgDir]);
+  await runScript("手順書の作成", ["poc/scene/build_manual.mjs", pkgDir]);
+  await runScript("依頼書・作業指示一覧の作成", ["poc/scene/build_app_task.mjs", pkgDir]);
 
   // 5) 案件として登録
   await setStatus(client, job.id, "registering_task", 88);
@@ -153,17 +169,23 @@ async function drain(client: SupabaseClient) {
     const job = await claimNext(client);
     if (!job) break;
     console.log(`\n[job ${job.id}] テーマ「${job.theme}」を処理開始`);
+    logLine(LOG_FILE, `[job ${job.id}] 「${job.theme}」を処理開始（${WORKER_ID}）`);
+    const stopHeartbeat = startHeartbeat(client, job.id);
     try {
       await processJob(client, job);
+      logLine(LOG_FILE, `[job ${job.id}] 完了`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`  ❌ 失敗: ${msg}`);
       const { data: cur } = await client.from("scene_jobs").select("status").eq("id", job.id).maybeSingle();
+      const msg = describeOtherError(e, (cur?.status as SceneJobStatus) ?? null);
+      console.error(`  ❌ 失敗（記録: ${LOG_FILE}）\n${msg}`);
+      if (!(e instanceof StepError)) logLine(LOG_FILE, msg);
       await client
         .from("scene_jobs")
         .update({ status: "failed", error: msg, error_stage: (cur?.status as SceneJobStatus) ?? null })
         .eq("id", job.id);
       await client.from("scene_job_events").insert({ job_id: job.id, stage: "failed", event: "failed", detail: msg });
+    } finally {
+      stopHeartbeat();
     }
   }
 }
@@ -172,7 +194,8 @@ async function main() {
   const client = sb();
   const watch = process.argv.includes("--watch");
   if (!process.env.GEMINI_API_KEY) console.warn("⚠ GEMINI_API_KEY 未設定：音声・生成がmock/無音になります");
-  console.log(`SCENEワーカー起動（${WORKER_ID}）${watch ? " watchモード" : ""}`);
+  mkdirSync(WORK_ROOT, { recursive: true });
+  console.log(`SCENEワーカー起動（${WORKER_ID}）${watch ? " watchモード" : ""}　記録: ${LOG_FILE}`);
   await drain(client);
   if (!watch) {
     console.log("pending なし。終了。");

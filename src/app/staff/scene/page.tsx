@@ -20,6 +20,7 @@ export default async function SceneJobsPage() {
     .order("created_at", { ascending: false })
     .limit(30);
   const jobs = (jobsData ?? []) as SceneJob[];
+  const now = new Date().getTime();
 
   const { data: notesData } = await supabase
     .from("scene_generation_notes")
@@ -66,6 +67,7 @@ export default async function SceneJobsPage() {
                 <SceneJobRow
                   key={job.id}
                   job={job}
+                  now={now}
                   sampleUrl={job.artifacts?.sample_video ? signedUrls.get(job.artifacts.sample_video) : undefined}
                   assetsUrl={job.artifacts?.assets_zip ? signedUrls.get(job.artifacts.assets_zip) : undefined}
                 />

@@ -5,10 +5,10 @@
 //   --reuse-sample を付けると、出力フォルダに前回作った完成見本と場面の映像があればそれを使い、
 //   書き出し（1本30分ほど・メモリを多く使う）を飛ばす。見本が変わらない作り直し（支給素材だけ）のとき用。
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 import { verifyPackage } from "./verifyPackage";
 import { updateSceneTask } from "./registerSceneTask";
+import { logLine, runStep } from "./runStep";
 
 if (existsSync(".env.local")) {
   for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
@@ -20,9 +20,11 @@ if (existsSync(".env.local")) {
 // build_materials.mjs が支給する声を -3dB 下げているので、見本用には戻す
 const VOICE_GAIN_RESTORE_DB = 3;
 
-function run(cmd: string, args: string[], env: Record<string, string> = {}) {
-  const r = spawnSync(cmd, args, { stdio: "inherit", env: { ...process.env, ...env } });
-  if (r.status !== 0) throw new Error(`失敗: ${cmd} ${args.join(" ")}`);
+// 何をしていて・どこで止まったかを残す。出力フォルダの「作り直しの記録.txt」
+let LOG_FILE: string | undefined;
+
+function run(step: string, cmd: string, args: string[], env: Record<string, string> = {}) {
+  return runStep(step, cmd, args, { env, logFile: LOG_FILE });
 }
 
 interface VoicePad {
@@ -51,7 +53,7 @@ const FPS = 24;
 const RESTORE_SAFETY_F = 0.25;
 
 /** 前のパッケージの 素材/音声/S01_02_ハル.wav → vox/s001_l1.wav（render_project が使う名前） */
-function restoreVox(oldPkg: string, voxDir: string) {
+async function restoreVox(oldPkg: string, voxDir: string) {
   rmSync(voxDir, { recursive: true, force: true });
   mkdirSync(voxDir, { recursive: true });
   const pads = readPads(oldPkg);
@@ -67,7 +69,7 @@ function restoreVox(oldPkg: string, voxDir: string) {
       ? [`atrim=start=${pad.leadF / FPS}:end=${(pad.leadF + pad.lenF + RESTORE_SAFETY_F) / FPS}`, "asetpts=PTS-STARTPTS"]
       : [];
     const af = [...trim, `volume=${VOICE_GAIN_RESTORE_DB}dB`].join(",");
-    run("ffmpeg", ["-y", "-v", "error", "-i", `${dir}/${n}`, "-af", af, "-c:a", "pcm_s16le", dst]);
+    await run(`声の取り出し（${n}）`, "ffmpeg", ["-y", "-v", "error", "-i", `${dir}/${n}`, "-af", af, "-c:a", "pcm_s16le", dst]);
   }
   return names.length;
 }
@@ -93,20 +95,24 @@ async function main() {
   const pkg = `${outDir}/package`;
   const sample = `${outDir}/sample.mp4`;
   mkdirSync(outDir, { recursive: true });
-  console.log(`声 ${restoreVox(oldPkg, vox)}本を前のパッケージから戻しました`);
+  LOG_FILE = `${outDir}/作り直しの記録.txt`;
+  logLine(LOG_FILE, `作り直し開始: ${project}${taskId ? `（案件 ${taskId} を置き換える）` : "（確かめるだけ）"}`);
+  console.log(`声 ${await restoreVox(oldPkg, vox)}本を前のパッケージから戻しました`);
 
   const env = { SCENE_WORK_DIR: work, SCENE_VOX_DIR: vox, SCENE_VISUAL_ASSET_DIR: `${work}/visual_assets` };
   rmSync(work, { recursive: true, force: true });
   if (reuseSample && existsSync(sample) && existsSync(`${pkg}/素材/映像`)) {
     console.log(`完成見本と場面の映像 ${reuseVisuals(pkg, env.SCENE_VISUAL_ASSET_DIR)}本は前回のものを使います`);
   } else {
-    run("node", ["poc/scene/render_project.mjs", project, sample], env);
+    await run("完成見本の書き出し", "node", ["poc/scene/render_project.mjs", project, sample], env);
   }
-  run("node", ["poc/scene/build_materials.mjs", project, pkg], { ...env, SAMPLE_VIDEO: sample });
-  run("node", ["poc/scene/build_manual.mjs", pkg]);
-  run("node", ["poc/scene/build_app_task.mjs", pkg]);
+  await run("素材の書き出し", "node", ["poc/scene/build_materials.mjs", project, pkg], { ...env, SAMPLE_VIDEO: sample });
+  await run("手順書の作成", "node", ["poc/scene/build_manual.mjs", pkg]);
+  await run("依頼書・作業指示一覧の作成", "node", ["poc/scene/build_app_task.mjs", pkg]);
   const r = verifyPackage(pkg);
-  console.log(`関門OK: 並べた長さ ${r.totalFrames}f / 完成見本 ${r.sampleFrames}f / セリフ ${r.voices}本`);
+  const ok = `関門OK: 並べた長さ ${r.totalFrames}f / 完成見本 ${r.sampleFrames}f / セリフ ${r.voices}本`;
+  console.log(ok);
+  logLine(LOG_FILE, ok);
 
   if (!taskId) return;
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -114,9 +120,15 @@ async function main() {
   });
   await updateSceneTask(sb, { pkgDir: pkg, taskId });
   console.log(`案件 ${taskId} を置き換えました`);
+  logLine(LOG_FILE, `案件 ${taskId} を置き換えました`);
 }
 
 main().catch((e) => {
-  console.error(e instanceof Error ? e.message : e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(msg);
+  if (LOG_FILE) {
+    logLine(LOG_FILE, `止まりました: ${msg}`);
+    console.error(`記録: ${LOG_FILE}`);
+  }
   process.exit(1);
 });

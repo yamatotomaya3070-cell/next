@@ -301,7 +301,7 @@ export default async function ReviewsPage() {
                           {" "}
                           長く順番待ちのままなら、検品ワーカーのパソコンが動いていません（
                           <Link href="/staff/guide/worker#trouble" className="underline">
-                            教科書 第11章
+                            職員の方の準備「ワーカー」
                           </Link>
                           ）。
                         </>

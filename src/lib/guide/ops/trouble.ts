@@ -63,7 +63,7 @@ export const OPS_TROUBLE: GuideOperation[] = [
     ],
     trouble: ["何度もとじるときは、職員の方に声をかけてください"],
     related: ["save-project", "project-new"],
-    chapterRef: "trouble#crash",
+    lesson: "dv-project",
   },
   {
     id: "trouble-cant-select",
@@ -91,21 +91,5 @@ export const OPS_TROUBLE: GuideOperation[] = [
       { text: "タイムラインの左はしで、映像の段に斜めの線が入っていないか見る（入っていれば、その段は無効になっている。段の名前の所の［トラックを有効化］のボタンを押してもどす）" },
     ],
     related: ["clip-disable", "playhead-move"],
-  },
-  {
-    id: "trouble-missing-template",
-    category: "trouble",
-    title: "「絆」の型・スクリプト・プリセットが見つからない",
-    aliases: ["型が無い", "プリセットが無い", "テンプレートが無い", "スクリプトが無い", "絆_YouTube_720pが無い", "絆の型"],
-    where: { page: "エディット・デリバー", panel: "エフェクト・上のメニュー・レンダー設定" },
-    what: "そのパソコンの準備（職員の方の作業）がまだのときは、絆の型が出てきません。型を使わない作り方で進められます。",
-    steps: [
-      { text: "職員の方に「絆の型が出ません」と声をかける" },
-      { text: "急ぐときは、字幕・テロップは［テキスト］を置いて自分で見た目を決める（「文字（テキスト）を置く」）" },
-      { text: "書き出しは、設定を自分で入れる（「書き出しの設定を自分で決める」）" },
-      { text: "素材を並べるスクリプトが無いときは、セリフを全部えらんで［タイムラインの末尾に追加］で並べる（「たくさんの素材を順番どおりに一気に並べる」）" },
-    ],
-    related: ["text-add", "export-settings", "timeline-append"],
-    chapterRef: "trouble#no-template",
   },
 ];

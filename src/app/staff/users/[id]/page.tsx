@@ -12,6 +12,8 @@ import {
 } from "@/lib/types";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { LessonProgressCard } from "@/components/guide/LessonProgressCard";
+import { loadLessonProgress } from "@/lib/guide/lessons/progress";
 import {
   AssignmentStatusBadge,
   StatusBadge,
@@ -21,6 +23,7 @@ import {
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { EmptyState } from "@/components/ui/states";
 import {
+  IconBook,
   IconChevronLeft,
   IconClipboard,
   IconHome,
@@ -91,6 +94,7 @@ export default async function StaffUserDetailPage({
 
   if (!profileData) notFound();
   const profile = profileData as Profile;
+  const lessonProgress = await loadLessonProgress(supabase, id);
   const aptitudes = (aptitudesData ?? []) as UserAptitude[];
   const assignments = (assignmentsData ?? []) as unknown as AssignmentRow[];
   const latestApproval =
@@ -234,6 +238,13 @@ export default async function StaffUserDetailPage({
           配慮メモ: {profile.notes}
         </p>
       )}
+
+      {/* 教科書の進み具合 */}
+      <div className="mt-6">
+        <SectionCard title="教科書の進み具合" icon={<IconBook />}>
+          <LessonProgressCard progress={lessonProgress} />
+        </SectionCard>
+      </div>
 
       {/* 本番移行判定 */}
       <div className="mt-6">

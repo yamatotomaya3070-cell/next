@@ -17,7 +17,7 @@ export const OPS_BASICS: GuideOperation[] = [
     ],
     trouble: ["マークが見えないときは、DaVinci の窓を最大化（右上の四角のボタン）してください"],
     related: ["screen-panels", "export-basic"],
-    chapterRef: "screen#map",
+    lesson: "dv-screen",
   },
   {
     id: "screen-panels",
@@ -35,7 +35,7 @@ export const OPS_BASICS: GuideOperation[] = [
     ],
     trouble: ["インスペクタやエフェクトが見えないときは「パネルを出す・かくす」を見てください"],
     related: ["panel-toggle", "page-switch"],
-    chapterRef: "screen#map",
+    lesson: "dv-screen",
   },
   {
     id: "panel-toggle",
@@ -51,7 +51,7 @@ export const OPS_BASICS: GuideOperation[] = [
     ],
     trouble: ["画面がぐちゃぐちゃになったときは「画面の並びを元にもどす」を見てください"],
     related: ["reset-layout", "screen-panels"],
-    chapterRef: "screen#titles",
+    lesson: "sub-style",
   },
   {
     id: "play-stop",
@@ -67,7 +67,7 @@ export const OPS_BASICS: GuideOperation[] = [
     ],
     trouble: ["音が出ないときは「音が出ない」を見てください", "カクカクするときは「再生がカクカクする」を見てください"],
     related: ["playhead-move", "trouble-no-sound", "trouble-slow"],
-    chapterRef: "screen#keys",
+    lesson: "pc-keys",
   },
   {
     id: "playhead-move",
@@ -96,7 +96,7 @@ export const OPS_BASICS: GuideOperation[] = [
     ],
     trouble: ["もどしすぎたときは、Ctrl + Shift + Z で1つ先にすすめます"],
     related: ["save-project"],
-    chapterRef: "trouble#undo",
+    lesson: "pc-keys",
   },
   {
     id: "save-project",
@@ -110,7 +110,7 @@ export const OPS_BASICS: GuideOperation[] = [
       { text: "作業のとちゅうで、こまめに押す（字幕を5つ入れたら1回、など）" },
     ],
     related: ["project-new", "trouble-crash"],
-    chapterRef: "project#save",
+    lesson: "dv-project",
   },
   {
     id: "project-new",
@@ -125,7 +125,7 @@ export const OPS_BASICS: GuideOperation[] = [
       { text: "続きをするときは、一覧のプロジェクトをダブルクリックして開く" },
     ],
     related: ["save-project", "media-import"],
-    chapterRef: "project#new",
+    lesson: "dv-project",
   },
   {
     id: "reset-layout",

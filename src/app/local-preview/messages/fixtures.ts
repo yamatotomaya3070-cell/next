@@ -62,7 +62,7 @@ export const PREVIEW_MESSAGES: ChatMessage[] = [
     sender_kind: "ai",
     sender_name: "作業サポートAI",
     sender_id: null,
-    body: "書き出しは「絆_YouTube_720p」のプリセットを選ぶと、指定どおりの設定になります。",
+    body: "書き出しの設定は、教科書 1-5 で保存した自分の型をえらぶと、指定どおりになります。",
     read_at: at(1, 15, 5),
     created_at: at(1, 15, 2),
   }),

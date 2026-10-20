@@ -25,8 +25,8 @@ export async function createSceneJob(
   if (!theme) {
     return { error: "テーマを入力してください。" };
   }
-  if (!Number.isFinite(targetMinutes) || targetMinutes < 3 || targetMinutes > 15) {
-    return { error: "目標の長さは3〜15分で指定してください。" };
+  if (!Number.isInteger(targetMinutes) || targetMinutes < 1 || targetMinutes > 15) {
+    return { error: "目標の長さは1〜15分（整数）で指定してください。" };
   }
   if (!Number.isFinite(difficulty) || difficulty < 1 || difficulty > 5) {
     return { error: "難易度は1〜5で指定してください。" };

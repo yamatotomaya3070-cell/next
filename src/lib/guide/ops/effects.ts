@@ -68,6 +68,6 @@ export const OPS_EFFECTS: GuideOperation[] = [
       "音もいっしょにだんだん小さくしたいときは、音声クリップにも同じことをします（「音をフェードイン・フェードアウトさせる」）",
     ],
     related: ["audio-fade", "telop-fade", "transition-add", "video-opacity"],
-    chapterRef: "telop#fade",
+    lesson: "telop",
   },
 ];

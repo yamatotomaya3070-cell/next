@@ -50,12 +50,12 @@ export function CreateSceneJobForm() {
             id="target_minutes"
             name="target_minutes"
             type="number"
-            min={3}
+            min={1}
             max={15}
             defaultValue={6}
             className="mt-1 w-full rounded-xl border-2 border-line p-3"
           />
-          <p className="mt-1 text-xs text-ink-soft">3〜15分</p>
+          <p className="mt-1 text-xs text-ink-soft">1〜15分（教科書の段3は 1分 → 3分 → 5分）</p>
         </div>
         <div>
           <label htmlFor="difficulty" className="block font-bold text-ink">

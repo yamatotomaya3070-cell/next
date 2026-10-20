@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_CHAPTERS, guideHref } from "./chapters";
+import { LESSONS, getLesson } from "./lessons";
 import { GUIDE_OPERATIONS, OP_CATEGORIES, POPULAR_SEARCH_WORDS, getOperation } from "./operations";
 import { searchOperations } from "./opsSearch";
 
@@ -34,19 +34,16 @@ describe("操作辞典のデータ", () => {
     }
   });
 
-  it("教科書の参照は実在する章と節を指す", () => {
+  it("教科書のレッスンへの参照は、実在するレッスンを指す", () => {
     for (const op of GUIDE_OPERATIONS) {
-      if (!op.chapterRef) continue;
-      const [, section] = op.chapterRef.split("#");
-      expect(guideHref("/guide", op.chapterRef), op.id).toBe(`/guide/${op.chapterRef.split("#")[0]}#${section}`);
+      if (!op.lesson) continue;
+      expect(getLesson(op.lesson), op.id).toBeDefined();
     }
   });
 
-  it("教科書の節から辞典へのリンクは実在する項目を指す", () => {
-    for (const ch of GUIDE_CHAPTERS) {
-      for (const sec of ch.sections) {
-        for (const id of sec.ops ?? []) expect(getOperation(id), `${ch.slug}#${sec.id} → ${id}`).toBeDefined();
-      }
+  it("レッスンから辞典へのリンクは実在する項目を指す", () => {
+    for (const l of LESSONS) {
+      for (const id of l.ops ?? []) expect(getOperation(id), `${l.slug} → ${id}`).toBeDefined();
     }
   });
 

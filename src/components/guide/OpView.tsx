@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { guideHref, guideLabel } from "@/lib/guide/chapters";
+import { lessonHref, lessonLabel } from "@/lib/guide/lessons";
 import { getOperation, operationHref, type GuideOperation } from "@/lib/guide/operations";
-import { IconAlert, IconBook, IconChevronLeft, IconChevronRight, IconSparkles } from "@/components/ui/icons";
+import { IconAlert, IconBook, IconChevronLeft, IconChevronRight } from "@/components/ui/icons";
 import { OpsSearch } from "./OpsSearch";
 
 interface OpViewProps {
@@ -31,8 +31,8 @@ export function OpView({ op, basePath }: OpViewProps) {
   const related = (op.related ?? [])
     .map((id) => getOperation(id))
     .filter((r): r is GuideOperation => Boolean(r));
-  const chapterLink = op.chapterRef ? guideHref(basePath, op.chapterRef) : null;
-  const chapterName = op.chapterRef ? guideLabel(op.chapterRef) : null;
+  const lessonLink = op.lesson ? lessonHref(basePath, op.lesson) : null;
+  const lessonName = op.lesson ? lessonLabel(op.lesson) : null;
 
   return (
     <article className="mx-auto w-full max-w-3xl">
@@ -86,26 +86,16 @@ export function OpView({ op, basePath }: OpViewProps) {
             </li>
           ))}
         </ol>
-        {chapterLink && chapterName && (
+        {lessonLink && lessonName && (
           <Link
-            href={chapterLink}
+            href={lessonLink}
             className="mt-5 inline-flex min-h-12 items-center gap-2 rounded-xl border border-primary/30 bg-primary-soft px-4 text-base font-bold text-primary hover:bg-primary-soft/70"
           >
             <IconBook className="size-5" />
-            写真つきの説明を見る：{chapterName}
+            教科書で練習する：{lessonName}
           </Link>
         )}
       </section>
-
-      {op.shortcut && (
-        <div className="mt-4 flex gap-3 rounded-xl bg-primary-soft/60 p-4 text-[15px] leading-relaxed text-ink">
-          <IconSparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <p>
-            <span className="block font-bold">近道（プリセットがあるとき）</span>
-            {op.shortcut}
-          </p>
-        </div>
-      )}
 
       {op.trouble && op.trouble.length > 0 && (
         <section aria-labelledby="op-trouble" className="mt-4 rounded-xl bg-warning-soft p-5 text-amber-900">

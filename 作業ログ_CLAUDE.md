@@ -586,3 +586,32 @@ PC依存:
 - 未対応・要確認: ④職員と利用者での通し試し、DaVinci 実機での操作確認、本番DBで案件を1件作る E2E、assets/voice_ng・assets/se のコミット（作業PCは git pull で受け取るため必須）、会話場面の映像は口・表情の動きが見本の間に合わせてあるので、切り方によっては少しずれる。
 - tsc・eslint・vitest 319件・next build 通過。
 - コードレビュー（code-reviewer）の指摘を反映: [HIGH] 既定のカット練習の形で、元パッケージの関門（verifyPackage）が app_task.json を要るのに作っていなかった → worker の raw 分岐で build_app_task.mjs を先に実行（09-18 のパッケージの複製で「app_task.json がありません」が出なくなったことを確認）。[MEDIUM] 部分一致は4文字かつ台本の3割以上の読みだけ／消し残しは小さく録った場面以外の声で探す／登録が途中で失敗したら案件・素材・ファイルを消す。[LOW] 答えの形を先に確かめる。
+- 2026-10-19 c83f62e を origin/main へ push → Vercel 本番 Ready（kizuna-video-training.vercel.app）。他の作業者の職員ダッシュボードの未コミット変更（src/app/staff/** ほか）は含めていない。案件を作るPCは「更新（職員用）.bat」で新しい形になる。検品は GitHub Actions なので push だけで反映。
+- 2026-10-19 ユーザー指示で、提出の無い以前の形の案件3件を本番から削除（iDeCo 247d0734・相続税 77f29a8b・edb85915）。案件・教材（cascade）と materials の assets.zip / sample.mp4 を消した。scene_jobs の記録は task_id が空になって残る。新NISA 56ec5dab（廣田さんの提出3本あり）は残した。新しい形の案件は、仕組みが全部できてから作って検証する方針。
+
+## 2026-10-20 教科書の作り直し（Claude、未コミット）
+- ユーザー指摘：大前提は「B型の就労者が、PC操作もほぼ初めてで DaVinci を始め、案件を取る」。10-19の形は最終試験だけで、上がっていく階段が無かった。本番にも新しい形の案件がゼロだった（新NISA 56ec5dab は scene-nisa の自動配置形式）。
+- 決定：動画の型は今まで通り。段0〜4の階段にする。Win と Mac の両方（Mac は違う所だけ手順の中に印で出す）。絆の型と書き出しプリセットは外し、自分で設定する。良し悪しを判断できる職員はいる。時間は人ごとに柔軟。目標の案件は未定。
+- 要件と進み具合は docs/教科書の要件_2026-10-20.md。src/lib/guide/lessons/ に26レッスン。chapters.ts は職員の2章と参照の解決（古い参照は lessons/legacy.ts で読みかえ）。editingChapters.ts は削除。
+- WorkSteps から動画ボタンをなくし、「教科書 2-2 …」のリンクにした。workflow は RAW_WORK_STEPS と ARRANGE_WORK_STEPS の2つ（自動配置の手順は廃止）。
+- 古い dev サーバー（PID 8140、10-19 起動、build で壊れていた）を止めて 3123 で立て直した。local-preview で全ページ 200、headless Edge で見た目を確認。
+- 確認結果：vitest 323 pass、tsc OK、eslint OK、next build OK。
+- 残り：実機での写真撮影とボタン名の確認、練習素材、進み具合と即時チェック、段3・4の案件。
+
+## 2026-10-20 夜 練習素材と進み具合（Claude、未コミット）
+- scripts/practice/buildPracticeKits.ts → public/guide/practice/*.zip（10個・約22MB）＋ lessons/kits.generated.ts。レッスンに kit を付け、ページの「できるようになること」の下に［練習の素材をダウンロード］。字幕焼き込みは libass＋YuGothB（fontsdir に複製）。
+- 00021_lesson_progress（未適用。本番で PGRST205 を確認、画面はボタンと進み具合を出さないだけで動く）。actions/lessonProgress.ts、components/guide/LessonDoneButton・LessonProgressCard、staff/users/[id] に進み具合。
+- 確認：vitest 329 pass、tsc OK、eslint OK、next build OK。詳細と答えは docs/教科書の要件_2026-10-20.md。
+
+## 2026-10-20 夜 DaVinci 21 実機で段1・段2を撮影（Claude、未コミット）
+- ユーザー許可（「PC触っていいからすべて行って」）で、この PC の DaVinci を PowerShell（SetCursorPos/mouse_event/SendKeys、DPI aware）で操作し、練習素材で全レッスンをやって 46枚撮影。注釈は scratchpad/annotate.ps1（1920x1200→1280x752、番号は枠の外）。古い画像・操作動画は削除。
+- 実機で直した点は docs/教科書の要件_2026-10-20.md の「実機での撮影と確認」。操作辞典のノーマライズの手順も修正。
+- 確認：vitest 329 pass、tsc OK、eslint OK、next build OK。
+- 途中で dev サーバー（3123）はメモリ不足で Claude Code に止められた（再起動していない）。
+
+## 2026-10-21 段2の即時チェックと、1分の案件（Claude、未コミット）
+- レッスン 1-5・2-1・2-2・2-3・2-9・2-11 に「書き出した動画で、すぐ確かめる」（components/guide/PracticeCheck.tsx）。ブラウザの中だけで音を調べる。判定は src/lib/guide/practiceCheck、答えの数字は scripts/practice/buildPracticeKeys.ts。詳細と根拠は docs/教科書の要件_2026-10-20.md「即時チェック」。
+- 案件の長さを1〜15分に（00022_scene_jobs_short.sql 要適用、sceneJobs.ts・CreateSceneJobForm・generate.ts sceneRange）。
+- 確認：vitest 350 pass、tsc OK、eslint OK（既存の warning 1）、next build OK。headless Edge で本物の DaVinci 書き出しを含めて判定を確認。
+- 3123 の dev サーバー（10-20 16:56 起動）が「Jest worker encountered 2 child process exceptions」で壊れている。止める操作は許可判定で止められたので、そのまま。
+- コードレビュー（code-reviewer）の指摘を反映：[HIGH] レッスンを移っても前のレッスンの結果が残る → key。[MEDIUM] 調べている途中の2つ目のファイルが古い結果で上書き → 実行番号で無視・入力を止める／300MB を何重にも持つ → 1回だけ読む・avc1 は頭と終わり4MBだけ／音の無い書き出しで 1-5 の診断が出ない → 音なしでも映像の項目と「音が入っていません」を出す／video.duration が Infinity・応答なし → 音の長さに切りかえ・15秒で打ち切り／2-2 の答えを場面ごとに測っていた → 1本につないで測る（許容 0.14秒）。[LOW] 2-11 で1場面だけ大きいとほかを小さいと言う → まん中の値を基準、声の無い場面を知らせる／00022 は target_minutes の check を名前によらず消す／長さは整数だけ。

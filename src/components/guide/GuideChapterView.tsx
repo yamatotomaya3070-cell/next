@@ -1,13 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { GUIDE_CHAPTERS, type GuideChapter, type GuideExample, type GuideSection } from "@/lib/guide/chapters";
-import { getOperation, operationHref, type GuideOperation } from "@/lib/guide/operations";
-import { IconAlert, IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
+import { STAFF_CHAPTERS, type GuideChapter, type GuideSection } from "@/lib/guide/chapters";
+import { IconAlert, IconChevronLeft, IconChevronRight, IconDownload, IconHelp } from "@/components/ui/icons";
 
 interface GuideChapterViewProps {
   chapter: GuideChapter;
   basePath: string;
-  audience: "trainee" | "staff";
 }
 
 function Mark({ n }: { n: number }) {
@@ -21,60 +19,7 @@ function Mark({ n }: { n: number }) {
   );
 }
 
-/** 節の下に出す「操作辞典で見る」リンク */
-function OpLinks({ ids, basePath }: { ids: string[]; basePath: string }) {
-  const ops = ids.map((id) => getOperation(id)).filter((op): op is GuideOperation => Boolean(op));
-  if (ops.length === 0) return null;
-  return (
-    <div className="mt-5 rounded-xl border border-line bg-page p-4">
-      <p className="flex items-center gap-2 text-[15px] font-bold text-ink">
-        <IconBook className="size-5 text-primary" />
-        くわしい操作を辞典で見る
-      </p>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {ops.map((op) => (
-          <li key={op.id}>
-            <Link
-              href={operationHref(basePath, op.id)}
-              className="inline-flex min-h-10 items-center rounded-full border border-line bg-surface px-4 text-[15px] text-primary hover:border-primary/40 hover:bg-primary-soft/30"
-            >
-              {op.title}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** 「直す前 → 直した後」の例 */
-function Examples({ examples }: { examples: GuideExample[] }) {
-  return (
-    <div className="mt-5 space-y-4">
-      <p className="text-[15px] font-bold text-ink">例</p>
-      {examples.map((ex, i) => (
-        <div key={i} className="rounded-xl border border-line bg-surface p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg bg-red-50 p-3">
-              <p className="text-xs font-bold text-red-800">直す前</p>
-              <p className="mt-1 whitespace-pre-line text-[16px] leading-relaxed text-red-950">{ex.before}</p>
-            </div>
-            <div className="rounded-lg bg-emerald-50 p-3">
-              <p className="text-xs font-bold text-emerald-800">直した後</p>
-              <p className="mt-1 whitespace-pre-line text-[16px] leading-relaxed text-emerald-950">{ex.after}</p>
-            </div>
-          </div>
-          <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">
-            <span className="font-bold text-ink">なぜ：</span>
-            {ex.why}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SectionBlock({ section, basePath }: { section: GuideSection; basePath: string }) {
+function SectionBlock({ section }: { section: GuideSection }) {
   return (
     <section id={section.id} aria-labelledby={`${section.id}-h`} className="scroll-mt-6 border-t border-line pt-8">
       <h2 id={`${section.id}-h`} className="text-xl font-bold text-ink">
@@ -94,8 +39,6 @@ function SectionBlock({ section, basePath }: { section: GuideSection; basePath: 
           </li>
         ))}
       </ol>
-
-      {section.examples && section.examples.length > 0 && <Examples examples={section.examples} />}
 
       {section.download && (
         <a
@@ -150,14 +93,13 @@ function SectionBlock({ section, basePath }: { section: GuideSection; basePath: 
         </div>
       )}
 
-      {section.ops && <OpLinks ids={section.ops} basePath={basePath} />}
     </section>
   );
 }
 
-/** 教科書の1章。利用者・職員の両方のページから使う。 */
-export function GuideChapterView({ chapter, basePath, audience }: GuideChapterViewProps) {
-  const visible = GUIDE_CHAPTERS.filter((c) => audience === "staff" || !c.forStaff);
+/** 職員の方の準備の1章（職員の画面だけで使う）。 */
+export function GuideChapterView({ chapter, basePath }: GuideChapterViewProps) {
+  const visible = STAFF_CHAPTERS;
   const idx = visible.findIndex((c) => c.slug === chapter.slug);
   const prev = idx > 0 ? visible[idx - 1] : null;
   const next = idx >= 0 && idx < visible.length - 1 ? visible[idx + 1] : null;
@@ -170,16 +112,9 @@ export function GuideChapterView({ chapter, basePath, audience }: GuideChapterVi
       </Link>
 
       <header className="mt-4">
-        <p className="text-sm font-bold text-primary">第{chapter.no}章</p>
+        <p className="text-sm font-bold text-primary">職員の方の準備 {chapter.no}</p>
         <h1 className="mt-1 text-2xl font-bold text-ink">{chapter.title}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{chapter.summary}</p>
-        <Link
-          href={`${basePath}/ops`}
-          className="mt-3 inline-flex min-h-11 items-center gap-1 text-base font-bold text-primary hover:underline"
-        >
-          <IconBook className="h-5 w-5" />
-          分からない言葉は操作辞典で調べる
-        </Link>
       </header>
 
       {chapter.sections.length > 1 && (
@@ -199,23 +134,9 @@ export function GuideChapterView({ chapter, basePath, audience }: GuideChapterVi
         </nav>
       )}
 
-      {chapter.video && (
-        <div className="mt-6">
-          <video
-            controls
-            preload="metadata"
-            poster={chapter.video.poster}
-            className="aspect-video w-full rounded-xl border border-line bg-black"
-          >
-            <source src={chapter.video.src} type="video/mp4" />
-          </video>
-          <p className="mt-2 text-sm text-ink-soft">声で説明しながら、実際に操作している動画です。</p>
-        </div>
-      )}
-
       <div className="mt-8 space-y-10">
         {chapter.sections.map((s) => (
-          <SectionBlock key={s.id} section={s} basePath={basePath} />
+          <SectionBlock key={s.id} section={s} />
         ))}
       </div>
 

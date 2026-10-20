@@ -19,7 +19,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       "置く所がずれるときは、タイムラインを拡大（右上の［＋］）してから置いてください",
     ],
     related: ["timeline-append", "clip-move", "timeline-snap", "track-add"],
-    chapterRef: "arrange#manual-video",
+    lesson: "place-video",
   },
   {
     id: "timeline-append",
@@ -36,7 +36,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
     ],
     trouble: ["順番がちがうときは、リスト表示の［クリップ名］の見出しを押して、名前の順に並べかえてからえらびなおしてください"],
     related: ["media-list-view", "timeline-place"],
-    chapterRef: "arrange#manual-append",
+    lesson: "place-video",
   },
   {
     id: "blade-cut",
@@ -69,7 +69,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
     ],
     trouble: ["まちがえて消したときは、Ctrl + Z でもどせます"],
     related: ["clip-ripple-delete", "timeline-close-gap", "blade-cut"],
-    chapterRef: "screen#keys",
+    lesson: "pc-keys",
   },
   {
     id: "clip-ripple-delete",
@@ -88,7 +88,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       "字幕やセリフがもう並んでいる動画では、ずれの元になるので、Backspace で消すほうが安全です",
     ],
     related: ["clip-delete", "blade-cut", "timeline-close-gap"],
-    chapterRef: "trouble#shifted",
+    lesson: "cut-basics",
   },
   {
     id: "clip-move",
@@ -118,7 +118,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       { text: "ピリオド（.）を押すと右へ1フレーム動く", hint: "." },
     ],
     related: ["clip-move", "playhead-move"],
-    chapterRef: "arrange#manual-timing",
+    lesson: "place-video",
   },
   {
     id: "clip-length-drag",
@@ -137,7 +137,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       "ぴったり合わないときは、スナップ（磁石のマーク）をオンにしてください",
     ],
     related: ["clip-duration", "timeline-snap", "subtitle-timing"],
-    chapterRef: "arrange#manual-video",
+    lesson: "place-video",
   },
   {
     id: "clip-duration",
@@ -168,7 +168,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       { text: "キーボードの N でも切りかえられる", hint: "N" },
     ],
     related: ["clip-move", "clip-length-drag", "timeline-close-gap"],
-    chapterRef: "arrange#manual-timing",
+    lesson: "place-video",
   },
   {
     id: "timeline-close-gap",
@@ -184,7 +184,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
     ],
     trouble: ["ほかの段のクリップがじゃまをして詰まらないことがあります。そのときは Ctrl + Z でもどして、職員の方に聞いてください"],
     related: ["timeline-snap", "clip-ripple-delete"],
-    chapterRef: "arrange#manual-timing",
+    lesson: "place-video",
   },
   {
     id: "timeline-zoom",
@@ -199,7 +199,7 @@ export const OPS_TIMELINE: GuideOperation[] = [
       { text: "動画の全体を画面に入れる：Shift + Z を押す", hint: "Shift + Z" },
     ],
     related: ["clip-length-drag", "timeline-close-gap"],
-    chapterRef: "screen#keys",
+    lesson: "pc-keys",
   },
   {
     id: "track-add",

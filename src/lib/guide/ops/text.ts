@@ -22,9 +22,8 @@ export const OPS_TEXT: GuideOperation[] = [
       "置いたのに文字が見えないときは、赤い線（再生の位置）が文字のクリップの上にあるか確かめてください",
       "［テキスト+］は設定が多いので、迷ったら［テキスト］を使います",
     ],
-    shortcut: "絆の案件では、話す人ごとに色を決めた「絆」の型があります。［タイトル］の検索に「絆」と入れて出てくる型を使うと、見た目を合わせる手間がいりません。",
     related: ["text-look", "text-position", "text-copy", "clip-length-drag"],
-    chapterRef: "subtitles#custom",
+    lesson: "sub-style",
   },
   {
     id: "text-look",
@@ -46,7 +45,7 @@ export const OPS_TEXT: GuideOperation[] = [
       "指定のフォントが一覧に無いときは、そのパソコンに入っていません。職員の方に聞いてください",
     ],
     related: ["text-position", "text-outline", "text-copy"],
-    chapterRef: "subtitles#custom-look",
+    lesson: "sub-style",
   },
   {
     id: "text-position",
@@ -62,7 +61,7 @@ export const OPS_TEXT: GuideOperation[] = [
       { text: "ビューアで、ほかの文字や顔と重なっていないか確かめる" },
     ],
     related: ["text-look", "compare-sample"],
-    chapterRef: "subtitles#custom-position",
+    lesson: "sub-style",
   },
   {
     id: "text-outline",
@@ -79,7 +78,7 @@ export const OPS_TEXT: GuideOperation[] = [
       { text: "ビューアで見え方を確かめる" },
     ],
     related: ["text-look", "text-position"],
-    chapterRef: "subtitles#custom-position",
+    lesson: "sub-style",
   },
   {
     id: "text-copy",
@@ -98,7 +97,7 @@ export const OPS_TEXT: GuideOperation[] = [
     ],
     trouble: ["貼り付けた場所に別のクリップがあると、上書きされます。貼る前に、その段のその場所が空いているか確かめてください"],
     related: ["text-add", "playhead-move", "clip-length-drag"],
-    chapterRef: "subtitles#custom-copy",
+    lesson: "sub-all",
   },
   {
     id: "subtitle-timing",
@@ -115,7 +114,7 @@ export const OPS_TEXT: GuideOperation[] = [
     ],
     trouble: ["ぴったり止まらないときは、スナップ（磁石のマーク）がオンか確かめてください"],
     related: ["clip-length-drag", "timeline-snap", "timeline-zoom"],
-    chapterRef: "subtitles#length",
+    lesson: "sub-all",
   },
   {
     id: "telop-fade",
@@ -132,6 +131,6 @@ export const OPS_TEXT: GuideOperation[] = [
       { text: "少し前から再生して確かめる" },
     ],
     related: ["video-fade", "timeline-zoom"],
-    chapterRef: "telop#fade",
+    lesson: "telop",
   },
 ];

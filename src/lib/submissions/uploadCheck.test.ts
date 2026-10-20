@@ -17,7 +17,7 @@ describe("checkSubmissionSize", () => {
     const message = checkSubmissionSize(120.4 * MB, 50);
     expect(message).toContain("120.4 MB");
     expect(message).toContain("50 MB");
-    expect(message).toContain("絆_YouTube_720p");
+    expect(message).toContain("Bit Rate");
   });
 
   test("0バイトのファイルは中身が無いと伝える", () => {

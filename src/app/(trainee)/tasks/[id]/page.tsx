@@ -208,7 +208,7 @@ export default async function TaskDetailPage({
       content: (
         <div className="space-y-5">
           <WorkSteps
-            steps={getWorkSteps("/guide", { autoArrange: mode === "auto_arrange", cutPractice: mode === "cut_practice" })}
+            steps={getWorkSteps("/guide", { cutPractice: mode === "cut_practice" })}
             assignmentId={assignment.id}
             readAloudEnabled={profile.read_aloud_enabled}
           />

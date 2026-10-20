@@ -1,29 +1,18 @@
 /**
- * DaVinci Resolve 動画編集の教科書（どの動画・どの案件でも使う共通の操作）。
- * 手順書(ManualStep.guide)から "章slug#節id" で参照される。
- * 画像は public/guide/img、操作動画は public/guide/video に置く。
+ * 職員の方の準備（パソコンの準備・ワーカーPC）。利用者の教科書（lessons/）とは分けて、職員の画面にだけ出す。
+ * 案件の手順や操作辞典からの参照（guideHref / guideLabel）は、レッスンの slug と、ここの "章slug#節id" の両方を受ける。
+ * 2026-10-20 より前の章の参照（"subtitles#place" など）は lessons/legacy.ts でレッスンへ読みかえる。
  */
+import { getLesson } from "./lessons";
+import { legacyLessonSlug } from "./lessons/legacy";
+import type { GuideMark } from "./lessons/types";
 
-import { EDITING_CHAPTERS } from "./editingChapters";
-
-export interface GuideMark {
-  /** 画像の赤い番号 */
-  n: number;
-  label: string;
-}
+export type { GuideExample, GuideMark } from "./lessons/types";
 
 export interface GuideStep {
   text: string;
   /** キー操作などの補足 */
   hint?: string;
-}
-
-/** 「直す前 → 直した後」の例。どこをどう判断するかを具体的に見せる */
-export interface GuideExample {
-  before: string;
-  after: string;
-  /** なぜそう直すか */
-  why: string;
 }
 
 export interface GuideSection {
@@ -35,9 +24,6 @@ export interface GuideSection {
   note?: { kind: "tip" | "warn"; title: string; body: string };
   /** この節で使うファイル（public に置いたもの） */
   download?: { href: string; label: string; size: string };
-  /** この節に関係する操作辞典の項目 id（operations.ts）。節の下に「辞典で見る」リンクが出る */
-  ops?: string[];
-  examples?: GuideExample[];
 }
 
 export interface GuideChapter {
@@ -45,817 +31,38 @@ export interface GuideChapter {
   no: number;
   title: string;
   summary: string;
-  /** 職員向けの章（利用者の一覧では後ろに回す） */
-  forStaff?: boolean;
-  /** "editing"：案件を受けるための編集の考え方の章（カット・テロップ・音）。目次では別のまとまりに出す */
-  part?: "editing";
-  /** 操作動画（ナレーション付き）。未収録なら undefined */
-  video?: { src: string; poster?: string };
   sections: GuideSection[];
 }
 
-const img = (name: string) => `/guide/img/${name}.jpg`;
-// 操作動画は poc/guide/build_video.mjs で作る（画面録画＋ナレーション）
-const vid = (slug: string) => ({ src: `/guide/video/${slug}.mp4`, poster: `/guide/video/${slug}.jpg` });
-
-export const GUIDE_CHAPTERS: GuideChapter[] = [
-  {
-    slug: "screen",
-    video: vid("screen"),
-    no: 1,
-    title: "DaVinci の画面の見方",
-    summary: "どこに何があるかを覚えます。手順書に出てくる場所の名前は、ぜんぶこの章の名前です。",
-    sections: [
-      {
-        id: "map",
-        title: "編集の画面（エディット）",
-        lead: "動画を作る作業は、ほとんどこの画面で行います。",
-        steps: [
-          { text: "①メディアプール：読み込んだ素材（映像・音声・画像）が並ぶ場所" },
-          { text: "②ビューア：いまの動画の見え方を確認する場所" },
-          { text: "③インスペクタ：えらんだものの文字・大きさ・音量などを変える場所" },
-          { text: "④エフェクト：字幕やテロップの型（タイトル）を探す場所。出し方は下の「字幕の型（タイトル）の出し方」" },
-          { text: "⑤タイムライン：素材を横に並べて、動画の順番と長さを決める場所" },
-          { text: "⑥ページの切りかえ：左から順に、メディア・カット・エディット・Fusion・カラー・Fairlight・デリバー" },
-        ],
-        image: {
-          src: img("g_screen_map"),
-          alt: "DaVinci Resolve のエディット画面。6つの場所に番号つきの赤い枠",
-          marks: [
-            { n: 1, label: "メディアプール" },
-            { n: 2, label: "ビューア" },
-            { n: 3, label: "インスペクタ" },
-            { n: 4, label: "エフェクト" },
-            { n: 5, label: "タイムライン" },
-            { n: 6, label: "ページの切りかえ" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "タイムラインの段（トラック）",
-          body: "V1・V2…は映像や文字の段で、数字が大きいほど上に重なって見えます。A1・A2…は音の段です。",
-        },
-        ops: ["page-switch", "screen-panels", "panel-toggle", "reset-layout"],
-      },
-      {
-        id: "titles",
-        title: "字幕の型（タイトル）の出し方",
-        lead: "左下のエフェクトの欄（上の図の④）を使います。［タイトル］は、この欄の左の一覧にあります。",
-        steps: [
-          { text: "①左の一覧の「ツールボックス」の下にある［タイトル］を押す" },
-          { text: "②上の検索に「絆」と入れる" },
-          { text: "③右に「絆」の型が4つ並ぶ。ここからタイムラインへドラッグして使う" },
-        ],
-        image: {
-          src: img("g_find_title"),
-          alt: "エフェクトの欄。左の一覧のタイトル、上の検索欄、右に並んだ絆の型4つに番号つきの赤い枠",
-          marks: [
-            { n: 1, label: "タイトル" },
-            { n: 2, label: "検索" },
-            { n: 3, label: "絆の型" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "エフェクトの欄が出ていないとき",
-          body: "画面左上の魔法の杖のマークを押すと、左下に出てきます。",
-        },
-        ops: ["text-add", "panel-toggle"],
-      },
-      {
-        id: "keys",
-        title: "よく使うキー",
-        steps: [
-          { text: "1つ前にもどす", hint: "Ctrl + Z" },
-          { text: "保存する（こまめに押す）", hint: "Ctrl + S" },
-          { text: "再生・停止", hint: "スペース" },
-          { text: "えらんだものを消す（うしろは詰めない）", hint: "Backspace" },
-          { text: "タイムライン全体を画面に入れる", hint: "Shift + Z" },
-        ],
-        note: {
-          kind: "warn",
-          title: "Delete キーに注意",
-          body: "Delete で消すと、うしろにある素材が前に詰められて時間がずれます。消すときは Backspace を使います。",
-        },
-        ops: ["undo", "save-project", "play-stop", "clip-delete", "timeline-zoom"],
-      },
-    ],
-  },
-  {
-    slug: "project",
-    no: 2,
-    title: "プロジェクトを作る・開く・保存する",
-    summary: "動画1本につき、プロジェクトを1つ作ります。",
-    sections: [
-      {
-        id: "new",
-        title: "新しいプロジェクトを作る",
-        steps: [
-          { text: "右下の家のマークを押して、プロジェクトの一覧を出す" },
-          { text: "①［新規プロジェクト］を押す" },
-          { text: "動画の名前（たとえば「新NISA_自分の名前」）を入れて、［作成］を押す" },
-        ],
-        image: {
-          src: img("g_new_project"),
-          alt: "プロジェクト一覧の右下にある新規プロジェクトのボタンに赤い枠",
-          marks: [{ n: 1, label: "新規プロジェクト" }],
-        },
-        ops: ["project-new"],
-      },
-      {
-        id: "rename",
-        title: "名前を変える",
-        steps: [
-          { text: "プロジェクトの一覧で、名前を変えたいプロジェクトを右クリックして［名前を変更…］を押す" },
-          { text: "①に新しい名前を入れて、②［OK］を押す" },
-        ],
-        image: {
-          src: img("b3_rename"),
-          alt: "プロジェクト名を変更する小さな画面。名前の欄とOKボタンに赤い印",
-          marks: [
-            { n: 1, label: "新しい名前" },
-            { n: 2, label: "OK" },
-          ],
-        },
-      },
-      {
-        id: "save",
-        title: "保存する",
-        steps: [
-          { text: "作業のとちゅうで、こまめに Ctrl + S を押す", hint: "Ctrl + S" },
-          { text: "DaVinci が急にとじても、開きなおせば最後に保存したところから続けられます" },
-        ],
-        ops: ["save-project"],
-      },
-    ],
-  },
-  {
-    slug: "import",
-    video: vid("import"),
-    no: 3,
-    title: "素材を入れる",
-    summary: "支給された素材を、フォルダごとメディアプールに入れます。",
-    sections: [
-      {
-        id: "drag",
-        title: "フォルダごとドラッグして入れる",
-        steps: [
-          { text: "エクスプローラーで「素材」フォルダを開き、DaVinci の横に並べる" },
-          { text: "フォルダの中をクリックして、Ctrl + A で中のフォルダを全部えらぶ", hint: "Ctrl + A" },
-          { text: "①えらんだフォルダを、DaVinci の左上（メディアプール）までドラッグしてはなす" },
-        ],
-        image: {
-          src: img("b5_drag_folders"),
-          alt: "エクスプローラーでフォルダを全部えらび、DaVinciの左上へドラッグする矢印",
-          marks: [{ n: 1, label: "フォルダを全部えらんで左上へドラッグ" }],
-        },
-        note: {
-          kind: "tip",
-          title: "［メディアの読み込み］を使わない理由",
-          body: "右クリックの［メディアの読み込み］では、フォルダの中のフォルダが入りません。ドラッグがいちばん確実です。",
-        },
-        ops: ["media-import", "media-bin"],
-      },
-      {
-        id: "check",
-        title: "入ったか確かめる",
-        steps: [{ text: "メディアプールに音声・映像・画像のアイコンが並べば成功です" }],
-        image: { src: img("b6_pool_filled"), alt: "メディアプールに素材のアイコンがたくさん並んだ画面" },
-        ops: ["media-list-view", "trouble-offline"],
-      },
-    ],
-  },
-  {
-    slug: "arrange",
-    video: vid("arrange"),
-    no: 4,
-    title: "素材を並べる",
-    summary: "オープニング・場面の映像・セリフ・BGM・エンディングをタイムラインに並べます。絆の案件はボタン1つで並びます。",
-    sections: [
-      {
-        id: "auto",
-        title: "絆の案件：スクリプトで一気に並べる",
-        lead: "素材の読み込みまで終わったら使います。ファイル名の番号順に、セリフはすき間なくつながって並びます（セリフの間（ま）は音声ファイルの中に入っています）。",
-        steps: [
-          { text: "①上のメニューの［ワークスペース］を押す" },
-          { text: "②［スクリプト］にマウスを乗せて、③［絆_素材を並べる］を押す" },
-          { text: "30秒ほど待つ。並べ終わると、ビューアに「並べ終わりました。」と出ます" },
-        ],
-        image: {
-          src: img("arrange_menu"),
-          alt: "ワークスペースメニューを開き、スクリプトの中の絆_素材を並べるに赤い枠",
-          marks: [
-            { n: 1, label: "ワークスペース" },
-            { n: 2, label: "スクリプト" },
-            { n: 3, label: "絆_素材を並べる" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "メニューに出てこないとき",
-          body: "パソコンの準備（職員の方の作業）がまだです。職員の方に声をかけてください。",
-        },
-        ops: ["timeline-append", "timeline-place"],
-      },
-      {
-        id: "auto-done",
-        title: "並べ終わったか確かめる",
-        steps: [
-          { text: "①ビューアに「並べ終わりました。」と、映像・セリフ・BGMの本数が出ていれば完了です" },
-          { text: "②タイムラインに、セリフ（A1）とBGM（A2）が最後のエンディングまで並んでいます" },
-          { text: "「置けなかったもの」と赤く出たときは、職員の方に声をかけてください" },
-        ],
-        image: {
-          src: img("arrange_done"),
-          alt: "ビューアに並べ終わりましたというメッセージ、タイムラインにセリフとBGMが並んだ画面",
-          marks: [
-            { n: 1, label: "完了のお知らせ" },
-            { n: 2, label: "並んだ素材" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "お知らせを消したいとき",
-          body: "お知らせは、タイムラインの先頭にある緑の印（マーカー）です。再生の位置を少し右に動かすと消えます。書き出した動画には出ません。",
-        },
-      },
-      {
-        id: "manual-voices",
-        title: "自分で並べる①：セリフの音声を順番どおりに入れる",
-        lead: "外部のお仕事など、スクリプトが使えないときのやり方です。",
-        steps: [
-          { text: "メディアプール上の①表示の切り替えを押し、②［リストビュー］を選ぶ" },
-          { text: "虫めがねを押して、検索の欄に音声のファイル名に共通する文字（例：_0）を入れる" },
-          { text: "一覧のどれか1つをクリックして、Ctrl + A で全部えらぶ", hint: "Ctrl + A" },
-          { text: "上のメニュー［編集］→［タイムラインの末尾に追加］を押す" },
-        ],
-        image: {
-          src: img("b7_list_view"),
-          alt: "メディアプール上部の表示切り替えメニューで、リストビューに赤い四角",
-          marks: [
-            { n: 1, label: "表示の切り替え" },
-            { n: 2, label: "リストビュー" },
-          ],
-        },
-        ops: ["media-list-view", "timeline-append"],
-      },
-      {
-        id: "manual-append",
-        title: "［タイムラインの末尾に追加］の場所",
-        steps: [{ text: "①［編集］を押し、②［タイムラインの末尾に追加］を押す" }],
-        image: {
-          src: img("b9_append_menu"),
-          alt: "編集メニューを開き、タイムラインの末尾に追加に赤い四角",
-          marks: [
-            { n: 1, label: "編集" },
-            { n: 2, label: "タイムラインの末尾に追加" },
-          ],
-        },
-      },
-      {
-        id: "manual-video",
-        title: "自分で並べる②：映像を置いて長さを合わせる",
-        steps: [
-          { text: "映像を、V1 の段の、その場面の最初の音声の頭までドラッグする" },
-          { text: "映像の右はしにマウスを乗せ、左右の矢印の形になったら、その場面の最後の音声の終わりまでドラッグする" },
-        ],
-        image: {
-          src: img("b13_trim_video"),
-          alt: "映像クリップの右はしをつかんで、場面の最後の音声の終わりに合わせている画面",
-          marks: [
-            { n: 1, label: "映像の右はし" },
-            { n: 2, label: "その場面の音声が終わる所" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "見えにくいとき",
-          body: "タイムラインの右上の［＋］を押すと、段が横に広がって合わせやすくなります。",
-        },
-        ops: ["timeline-place", "clip-length-drag", "timeline-zoom"],
-      },
-      {
-        id: "manual-timing",
-        title: "絆の案件を自分で並べる：セリフはすき間なくつなげる",
-        lead: "絆の案件で、スクリプトを使わずに自分でセリフを並べるとき（練習で並べ直すときも）の決まりです。セリフとセリフの間（ま）は、音声ファイルの中に「音のない時間」として、はじめから入っています。なので、タイムラインでは間を空けずに並べます。",
-        steps: [
-          { text: "セリフの音声は、A1 の段に、ファイル名の番号の順に並べる" },
-          { text: "2つ目からのセリフは、前のセリフの右はしに、すき間なくぴったりつなげて置く（自分で間を空けない）" },
-          { text: "上の「自分で並べる①」のやり方（全部えらんで［タイムラインの末尾に追加］）なら、はじめからすき間なくつながって並びます" },
-          { text: "1本ずつドラッグして置くときは、スナップ（磁石のマーク）をオンにしておくと、前のクリップの右はしに吸いつくように止まります" },
-          { text: "場面の映像（V1）は、前の場面の映像の終わりにすき間なくつなげ、右はしをその場面の最後のセリフの終わりに合わせる" },
-          { text: "最後に、セリフとセリフの間に黒いすき間が無いか、タイムラインを拡大して確かめる" },
-        ],
-        note: {
-          kind: "warn",
-          title: "すき間ができてしまったら",
-          body: "すき間の上（何もない所）をクリックしてえらび、Delete を押すと、うしろが前に詰まって、すき間が消えます。クリップを消すときの Delete とちがい、ここでは詰めたいので Delete を使います。",
-        },
-        ops: ["timeline-snap", "timeline-close-gap", "timeline-zoom", "timeline-nudge"],
-      },
-    ],
-  },
-  {
-    slug: "subtitles",
-    video: vid("subtitles"),
-    no: 5,
-    title: "字幕を入れる",
-    summary: "セリフ1本に字幕を1つ入れます。字幕の型を置いて、長さを合わせて、文字を貼ります。",
-    sections: [
-      {
-        id: "place",
-        title: "字幕の型を置く",
-        lead: "型は話す人ごとに色が決まっています。音声ファイル名の最後に書いてある人の型を使います。「絆」の型が一覧に無いとき（外部のお仕事や、準備のすんでいないパソコン）は、下の「外部のお仕事①」と同じように［テキスト］を置いて作れます。",
-        steps: [
-          { text: "左下のエフェクトの欄で、左の一覧の［タイトル］を押し、上の検索に「絆」と入れる（右に「絆」の型が4つ並ぶ）" },
-          { text: "①話す人の字幕の型を、字幕の段（V3）の、その音声の頭までドラッグする" },
-        ],
-        image: {
-          src: img("b16_drag_subtitle"),
-          alt: "字幕の型を、V3の段の先頭へドラッグする矢印",
-          marks: [{ n: 1, label: "字幕の型を V3 の音声の頭へ" }],
-        },
-        ops: ["text-add", "subtitle-timing"],
-      },
-      {
-        id: "length",
-        title: "長さを音声に合わせる",
-        steps: [{ text: "②字幕の右はしを、その音声の終わりまでドラッグする" }],
-        image: {
-          src: img("b17_trim_subtitle"),
-          alt: "字幕クリップの右はしを、下の音声の終わりに合わせている画面",
-          marks: [{ n: 2, label: "字幕の右はし" }],
-        },
-        ops: ["subtitle-timing", "clip-length-drag"],
-      },
-      {
-        id: "text",
-        title: "文字を入れる",
-        steps: [
-          { text: "作業指示一覧のセリフの文をコピーする", hint: "Ctrl + C" },
-          { text: "字幕をクリックしてえらび、③インスペクタの文字の欄を全部えらんで貼る", hint: "Ctrl + A → Ctrl + V" },
-          { text: "赤い線（再生の位置）を字幕の上に動かして、④ビューアで見え方を確かめる" },
-        ],
-        image: {
-          src: img("b18_type_subtitle"),
-          alt: "インスペクタの文字の欄にセリフを貼り、ビューアに字幕が表示された画面",
-          marks: [
-            { n: 3, label: "文字の欄" },
-            { n: 4, label: "見え方" },
-          ],
-        },
-        ops: ["text-add"],
-      },
-      {
-        id: "custom",
-        title: "外部のお仕事①：［テキスト］の型を置いて文字を入れる",
-        lead: "クラウドワークスなど外部のお仕事では、「絆」の型は使いません。依頼内容で指定された見た目に、自分で合わせます。",
-        steps: [
-          { text: "依頼内容から、字幕の指定（フォント・大きさ・色・縁取り・画面のどこに出すか）を書き出す。指定が無い所は、完成見本があれば、見本と自分の動画を同じ場面で止めて見くらべ、色・大きさ・場所を同じにする（くらべ方は下の「くわしい操作を辞典で見る」の［完成見本と見くらべる］）" },
-          { text: "左下のエフェクトの欄で、左の一覧の［タイトル］を押し、①上の検索に「テキスト」と入れる" },
-          { text: "②［テキスト］を、③字幕の段（V2）の、最初の音声の頭までドラッグする" },
-          { text: "置いた字幕をクリックしてえらび、右上の［インスペクタ］の④文字の欄にセリフを入れる" },
-        ],
-        image: {
-          src: img("ext_text_place"),
-          alt: "エフェクトの検索にテキストと入れ、テキストの型をV2に置き、インスペクタの文字の欄にセリフを入れた画面",
-          marks: [
-            { n: 1, label: "検索に「テキスト」" },
-            { n: 2, label: "［テキスト］の型" },
-            { n: 3, label: "V2 に置いた字幕" },
-            { n: 4, label: "文字の欄" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "［テキスト+］ではなく［テキスト］",
-          body: "検索すると［テキスト+］も出ますが、設定が多くて迷いやすいので、外部のお仕事では［テキスト］を使います。",
-        },
-        ops: ["text-add", "compare-sample"],
-      },
-      {
-        id: "custom-look",
-        title: "外部のお仕事②：文字の見た目（フォント・サイズ・カラー）を合わせる",
-        steps: [
-          { text: "字幕をえらんだまま、インスペクタを少し下にスクロールする" },
-          { text: "①［フォント］で指定のフォントをえらぶ（日本語の指定が無ければ、Windows は Yu Gothic UI、Mac はヒラギノ角ゴシック）" },
-          { text: "②［サイズ］に指定の大きさを入れる（例：60）。数字の欄をクリックして、数字を打って Enter", hint: "数字 → Enter" },
-          { text: "③［カラー］の四角を押して、指定の色にする" },
-          { text: "④ビューアで見え方を確かめる" },
-        ],
-        image: {
-          src: img("ext_text_look"),
-          alt: "インスペクタのフォント・サイズ・カラーの行と、サイズを60にして小さくなった字幕がビューアに出た画面",
-          marks: [
-            { n: 1, label: "フォント" },
-            { n: 2, label: "サイズ" },
-            { n: 3, label: "カラー" },
-            { n: 4, label: "見え方" },
-          ],
-        },
-        ops: ["text-look"],
-      },
-      {
-        id: "custom-position",
-        title: "外部のお仕事③：置く場所と縁取りを合わせる",
-        steps: [
-          { text: "インスペクタをさらに下にスクロールして、①［位置］の Y に数字を入れる。小さいほど下に出ます（画面の下なら 90 くらい、上なら 620 くらい）" },
-          { text: "縁取りの指定があれば、［ストローク］を開いて②［サイズ］に太さを入れる（例：4）。色は［カラー］で" },
-          { text: "影の指定は［ドロップシャドウ］で決める（指定が無ければさわらない）" },
-          { text: "文字の下に帯（背景の四角）を付ける指定があれば、［背景］を開いて［カラー］で帯の色、［幅］［高さ］で帯の大きさ、［角の丸み］で角の丸さを決め、［不透明度］を 100 にする" },
-          { text: "③ビューアで、指定どおりの場所に出ているか確かめる" },
-        ],
-        image: {
-          src: img("ext_text_position"),
-          alt: "インスペクタの位置とストロークの行、画面の下に縁取りつきで出た字幕",
-          marks: [
-            { n: 1, label: "位置（X・Y）" },
-            { n: 2, label: "ストロークのサイズ" },
-            { n: 3, label: "画面の下に出た字幕" },
-          ],
-        },
-        note: {
-          kind: "warn",
-          title: "数字の欄では Ctrl + A を使わない",
-          body: "数字の欄で Ctrl + A を押すと、タイムラインの全部のクリップがえらばれて、見た目の変更が全部に入ってしまいます。数字の欄はクリックしてそのまま数字を打ちます。",
-        },
-        ops: ["text-position", "text-outline"],
-      },
-      {
-        id: "custom-copy",
-        title: "外部のお仕事④：1つ目をコピーして増やす",
-        lead: "見た目を合わせた1つ目をコピーすれば、2つ目からは文字を変えるだけで済みます。",
-        steps: [
-          { text: "①見た目を合わせた1つ目の字幕をクリックしてえらび、コピーする", hint: "Ctrl + C" },
-          { text: "③赤い線（再生の位置）を、次の音声の頭に動かす（タイムラインの上の時間の目盛りをクリック）" },
-          { text: "貼り付けると、②同じ見た目の字幕が再生の位置に置かれる", hint: "Ctrl + V" },
-          { text: "貼り付けた字幕をえらび、④文字の欄の文を次のセリフに変え、右はしをその音声の終わりまでドラッグして長さを合わせる" },
-        ],
-        image: {
-          src: img("ext_text_copy"),
-          alt: "V2に1つ目と貼り付けた2つ目の字幕が並び、再生の位置が2つ目の上にあり、インスペクタの文字の欄が見える画面",
-          marks: [
-            { n: 1, label: "1つ目の字幕" },
-            { n: 2, label: "貼り付けた2つ目" },
-            { n: 3, label: "赤い線（再生の位置）" },
-            { n: 4, label: "文字の欄" },
-          ],
-        },
-        note: {
-          kind: "warn",
-          title: "見た目は最初の1つで決める",
-          body: "2つ目からはコピーで増やすので、最初の1つの見た目を依頼内容とよく見くらべてから増やします。あとから全部を直すのは大変です。",
-        },
-        ops: ["text-copy"],
-      },
-    ],
-  },
-  {
-    slug: "telop",
-    video: vid("telop"),
-    no: 6,
-    title: "強調テロップを入れる",
-    summary: "画面の上に出る、黄色い大きな文字です。作業指示一覧に文字が書いてある場面だけ入れます。",
-    sections: [
-      {
-        id: "place",
-        title: "テロップを置いて文字を入れる",
-        steps: [
-          { text: "①［絆_強調テロップ］を、強調テロップの段（V4）の、作業指示一覧で「強調テロップ」の欄に文字がある行のセリフの頭までドラッグする" },
-          { text: "テロップの右はしを、その場面の映像の終わりまでドラッグする（「ここから場面の終わりまで」）" },
-          { text: "テロップをえらび、②インスペクタの文字の欄に作業指示一覧の「強調テロップ」の文を貼る" },
-          { text: "③ビューアの上に黄色い文字が出れば完成です" },
-        ],
-        image: {
-          src: img("b19_telop"),
-          alt: "V4の段に強調テロップを置き、文字の欄に文を入れ、ビューア上にテロップが出た画面",
-          marks: [
-            { n: 1, label: "V4 のテロップ" },
-            { n: 2, label: "文字の欄" },
-            { n: 3, label: "見え方" },
-          ],
-        },
-        note: {
-          kind: "warn",
-          title: "文字が二重にならないように",
-          body: "作業指示一覧の強調テロップの欄が空いている場面には入れません。図や数字の映像には、はじめから文字が入っています。",
-        },
-        ops: ["text-add", "clip-length-drag"],
-      },
-      {
-        id: "fade",
-        title: "テロップをふわっと出す（フェードイン）",
-        lead: "絆の強調テロップは、出るときに 8フレーム（約0.3秒）かけて、ふわっと出します。クリップの左上のすみにある白い印（フェードハンドル）を、右へ 8フレーム分ドラッグすると、この動きになります。",
-        steps: [
-          { text: "タイムラインの右上の［＋］を何回か押して、テロップのクリップを横に大きく表示する" },
-          { text: "テロップのクリップにマウスを乗せると、左上のすみに小さな白い印（フェードハンドル）が出る" },
-          { text: "その白い印をつかんで、右へドラッグする。上に出る数字が「+8」（8フレーム）になったら離す", hint: "+00:00:00:08 と出たら離す" },
-          { text: "赤い線（再生の位置）をテロップの少し前に動かして再生し、ふわっと出てくるか確かめる" },
-        ],
-        note: {
-          kind: "tip",
-          title: "終わりはそのまま",
-          body: "テロップは場面の終わりで消えます。終わりのほう（右上のすみ）の白い印はさわりません。外部のお仕事で「テロップをフェードで出す」と指定されたときも、同じやり方です。",
-        },
-        ops: ["telop-fade", "video-fade"],
-      },
-      {
-        id: "custom",
-        title: "外部のお仕事：指定に合わせてテロップを作る",
-        lead: "クラウドワークスなど外部のお仕事では、「絆_強調テロップ」は使いません。依頼内容にテロップの指定がある場面だけ、自分で作ります。",
-        steps: [
-          { text: "依頼内容から、テロップを出す場面・文字・見た目（フォント・大きさ・色・画面のどこに出すか）を書き出す。指定が無い場面には入れない" },
-          { text: "左下のエフェクトの欄の一覧で［タイトル］を押し、［テキスト］を、①テロップの段（字幕より上の段、V3）の、出したい所までドラッグし、右はしを終わりに合わせる" },
-          { text: "インスペクタの文字の欄に文字を入れ、［フォント］［サイズ］［カラー］で見た目を合わせる。②［位置］の Y を大きく（例：620）すると画面の上に出る" },
-          { text: "文字の後ろに帯（背景の四角）を付ける指定があれば、インスペクタの［背景］を開き、［カラー］で帯の色、［幅］［高さ］で帯の大きさ、［角の丸み］で角を決めて、［不透明度］を 100 にする" },
-          { text: "出かたの指定（「ふわっと出す」など）があれば、上の「テロップをふわっと出す」と同じように、クリップの左上の白い印を引いてフェードインを付ける" },
-          { text: "赤い線（再生の位置）をテロップの上に動かして、③ビューアで字幕と重なっていないか確かめる" },
-        ],
-        image: {
-          src: img("ext_telop"),
-          alt: "V3の段に置いたテキストの型、インスペクタの位置Yを620にして、ビューアの上にテロップが出た画面",
-          marks: [
-            { n: 1, label: "V3 に置いたテロップ" },
-            { n: 2, label: "位置の Y" },
-            { n: 3, label: "画面の上に出たテロップ" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "字幕と同じ見た目にしないとき",
-          body: "テロップは字幕より大きく目立たせることが多いです。字幕の型をコピーして作ると同じ見た目になってしまうので、テロップは［テキスト］を新しく置いて作ります。",
-        },
-        ops: ["text-add", "text-look", "text-position", "telop-fade"],
-      },
-    ],
-  },
-  {
-    slug: "audio",
-    video: vid("audio"),
-    no: 7,
-    title: "BGM と音量",
-    summary: "BGM を声より小さくして、セリフがはっきり聞こえるようにします。",
-    sections: [
-      {
-        id: "volume",
-        title: "BGM の音量を下げる",
-        steps: [
-          { text: "Ctrl を押しながら、①BGM の段にあるBGMを全部クリックしてえらぶ", hint: "Ctrl + クリック" },
-          { text: "右上の［インスペクタ］を開き、②ボリュームの数字に -20 と入れて Enter", hint: "-20 → Enter" },
-          { text: "声の大きさはさわりません（支給した声は、ちょうどよい大きさにしてあります）" },
-        ],
-        image: {
-          src: img("b15_bgm_volume"),
-          alt: "BGMの段のBGMを全部えらび、インスペクタのボリュームに-20と入れた画面",
-          marks: [
-            { n: 1, label: "えらんだBGM" },
-            { n: 2, label: "ボリューム" },
-          ],
-        },
-        ops: ["volume-clip", "volume-keyframe", "mixer-meter", "bgm-add"],
-      },
-    ],
-  },
-  {
-    slug: "export",
-    video: vid("export"),
-    no: 8,
-    title: "動画を書き出す",
-    summary: "できあがった動画を、提出できる MP4 ファイルにします。",
-    sections: [
-      {
-        id: "preset",
-        title: "書き出しの設定をえらぶ",
-        steps: [
-          { text: "Ctrl + S で保存してから、いちばん下のロケットのマーク（デリバー）を押す", hint: "Ctrl + S" },
-          { text: "②プリセットを押し、③［絆_YouTube_720p］を選ぶ。形式や大きさはこれで全部そろいます" },
-        ],
-        note: {
-          kind: "warn",
-          title: "［絆_YouTube_720p］が一覧に無いとき",
-          body: "［絆_素材を並べる］を実行すると自動で入ります。それでも無いときは、そのパソコンの準備（職員の方の作業）がまだです。急ぐときは、プリセットをえらばずに、フォーマット［MP4］・コーデック［H.264］・解像度［1280 × 720］・フレームレート［24］、下のほうの［Rate Control］を［固定ビットレート］・［Bit Rate］を［600］、［オーディオ］タブの［トラックのデータレート］を［128］にして書き出せば同じ仕上がりになります。ビットレートを下げないと、ファイルが大きすぎて提出できません（送れるのは 50MB まで）。",
-        },
-        image: {
-          src: img("b21_preset_pick"),
-          alt: "プリセットの一覧を開き、絆_YouTube_720pに赤い四角",
-          marks: [
-            { n: 2, label: "プリセット" },
-            { n: 3, label: "絆_YouTube_720p" },
-          ],
-        },
-        ops: ["export-settings", "export-small"],
-      },
-      {
-        id: "render",
-        title: "名前と場所を決めて書き出す",
-        steps: [
-          { text: "①ファイル名に、提出する名前を入れる" },
-          { text: "②［ブラウズ］を押して、保存する場所を選ぶ" },
-          { text: "③［レンダーキューに追加］を押す" },
-          { text: "④［すべてレンダー］を押す。右上の数字が 100% になれば完了です" },
-        ],
-        image: {
-          src: img("b22_render_settings"),
-          alt: "デリバー画面。ファイル名、ブラウズ、レンダーキューに追加、すべてレンダーに赤い印",
-          marks: [
-            { n: 1, label: "ファイル名" },
-            { n: 2, label: "ブラウズ" },
-            { n: 3, label: "レンダーキューに追加" },
-            { n: 4, label: "すべてレンダー" },
-          ],
-        },
-        ops: ["export-basic"],
-      },
-      {
-        id: "check",
-        title: "書き出した動画を確かめる",
-        steps: [
-          { text: "書き出した動画を最初から最後まで再生する" },
-          { text: "映像の順番・字幕の文と色・テロップを、作業指示一覧とくらべる。声がBGMに消されていないかも聞く" },
-        ],
-        ops: ["export-check", "compare-sample"],
-      },
-      {
-        id: "submit",
-        title: "提出する・提出したあとの流れ",
-        lead: "アプリの案件の画面の「提出」タブから送ります。",
-        steps: [
-          { text: "「提出」タブで、提出前のチェックに全部チェックを入れ、書き出した動画のファイルをえらぶ" },
-          { text: "［提出する］を押し、確かめの画面でもう一度［提出する］を押す" },
-          { text: "「動画を送っています… ○%」と出ている間は、画面をとじずに待つ（数分かかることがあります）" },
-          { text: "「提出できました!」と出たら完了です。もう一度提出する必要はありません" },
-          { text: "結果は、職員の方の確認が終わると「レビュー結果」タブに届きます（直すところがはっきりしているときは、数分で届くこともあります）" },
-          { text: "画面を開いたままでも、届くと「レビュー結果が届きました」と出ます。直すところがあれば、直してもう一度提出します" },
-        ],
-        note: {
-          kind: "warn",
-          title: "送っている途中でとじない",
-          body: "％が 100 になる前に画面をとじたり、別の案件に移ったりすると、送り直しになります。止まって見えるときは、％の数字が増えているかを見てください。",
-        },
-      },
-    ],
-  },
-  {
-    slug: "trouble",
-    no: 9,
-    title: "こまったとき",
-    summary: "よくある困りごとと、なおし方です。",
-    sections: [
-      {
-        id: "undo",
-        title: "まちがえて、変な所に置いてしまった",
-        steps: [{ text: "Ctrl + Z で1つ前にもどります。何回でももどせます", hint: "Ctrl + Z" }],
-        ops: ["undo"],
-      },
-      {
-        id: "shifted",
-        title: "音声が前に詰められて、ずれてしまった",
-        steps: [{ text: "Delete で消すと、うしろが詰まります。Ctrl + Z でもどして、Backspace で消しなおします" }],
-        ops: ["clip-delete", "clip-ripple-delete"],
-      },
-      {
-        id: "no-template",
-        title: "タイトルに「絆」の型や、スクリプトが出てこない",
-        steps: [{ text: "パソコンの準備がまだです。職員の方に声をかけてください" },
-          { text: "急ぐときは、型を使わずに作れます。字幕・テロップは［タイトル］の［テキスト］を置いてインスペクタで見た目を決め、書き出しは設定を自分で入れます（下の辞典のリンク）" }],
-        ops: ["text-add", "export-settings", "trouble-missing-template"],
-      },
-      {
-        id: "crash",
-        title: "DaVinci が急にとじてしまった",
-        steps: [{ text: "もう一度開くと、最後に保存したところから続けられます。作業中はこまめに Ctrl + S を押します" }],
-        ops: ["trouble-crash"],
-      },
-    ],
-  },
+export const STAFF_CHAPTERS: GuideChapter[] = [
   {
     slug: "setup",
-    no: 10,
+    no: 1,
     title: "パソコンの準備（職員の方へ）",
-    summary: "1台のパソコンで、最初に1回だけ行います。利用者の方の作業はありません。",
-    forStaff: true,
+    summary: "利用者の方が使うパソコン1台ごとに、最初に1回だけ行います。",
     sections: [
       {
         id: "install",
         title: "DaVinci Resolve を入れる",
         steps: [
-          { text: "DaVinci Resolve 21（無料版）をインストールして、1回起動する" },
+          { text: "Blackmagic Design のサイトから DaVinci Resolve 21（無料版。「Studio」ではない方）をダウンロードしてインストールし、1回起動する" },
           { text: "画面が英語なら、［DaVinci Resolve］→［Preferences］→［User］→［UI Settings］→［Language］を日本語にして再起動する" },
+          { text: "Mac も同じです。インストールのとちゅうで「アクセスを許可しますか」と出たら［許可］を押します" },
         ],
         note: {
           kind: "warn",
           title: "バージョンを 21 にそろえる",
-          body: "「素材を並べる」スクリプトは、DaVinci Resolve 20.2.2 より前の版では BGM が並ばない不具合があります。全部のパソコンを 21 にそろえてください。",
-        },
-      },
-      {
-        id: "bat",
-        title: "字幕の型・スクリプト・書き出し設定を入れる（Windows）",
-        lead: "パソコン1台ごとに1回だけ。これをしていないパソコンでは、「絆」の字幕の型、［絆_素材を並べる］、書き出しの［絆_YouTube_720p］が出てきません。2026年10月6日に書き出し設定を軽くした（提出できる 50MB に収まるように）ので、それより前に準備したパソコンも、新しいファイルでもう一度行ってください。",
-        download: { href: "/guide/setup/kizuna_davinci_setup.zip", label: "セットアップ用ファイルをダウンロード", size: "13KB" },
-        steps: [
-          { text: "下の［セットアップ用ファイルをダウンロード］を押し、ダウンロードした ZIP を右クリック →［すべて展開］する" },
-          { text: "DaVinci をとじる" },
-          { text: "展開したフォルダの「セットアップ（職員用）.bat」をダブルクリックする" },
-          { text: "「セットアップが終わりました」と出たら、何かキーを押してとじる" },
-          { text: "下の「入ったか確かめる」の2つを見る" },
-        ],
-        note: {
-          kind: "tip",
-          title: "Mac のとき",
-          body: "bat は Windows 専用です。Mac は次の「（Mac）」の手順で入れます。",
-        },
-      },
-      {
-        id: "mac",
-        title: "字幕の型・スクリプト・書き出し設定を入れる（Mac）",
-        lead: "中身は Windows と同じです。入れるためのファイルと、字幕の型のフォントだけが Mac 用です（Windows の「Yu Gothic UI」は Mac に無いので、Mac に入っている「ヒラギノ角ゴシック」を使います）。Mac での動きはまだ確かめている途中なので、うまくいかないときは出た画面を担当者に送ってください。",
-        download: { href: "/guide/setup/kizuna_davinci_setup_mac.zip", label: "Mac 用のセットアップファイルをダウンロード", size: "14KB" },
-        steps: [
-          { text: "下の［Mac 用のセットアップファイルをダウンロード］を押し、ダウンロードした ZIP をダブルクリックして開く" },
-          { text: "DaVinci をとじる" },
-          { text: "開いたフォルダの「セットアップ（Mac検証用）.command」をダブルクリックする（「アクセスを許可しますか」と出たら［許可］）" },
-          { text: "黒い画面に「セットアップが終わりました。」と出たら、return キーを押してとじる" },
-          { text: "「スクリプト」フォルダの「絆_素材を並べる.lua」は開かない。ダブルクリックしても「開くアプリケーションがない」と出るだけで、DaVinci のメニューから使うファイルです" },
-          { text: "下の「入ったか確かめる」の2つを見る" },
-        ],
-        note: {
-          kind: "warn",
-          title: "「開発元を確認できない」と止められたとき",
-          body: "Mac の安全機能です。止められた画面をとじ、リンゴのマーク →［システム設定］→［プライバシーとセキュリティ］の下のほうにある［このまま開く］を押してから、もう一度ダブルクリックして［開く］を押します。",
-        },
-      },
-      {
-        id: "mac-font",
-        title: "Mac で字幕の文字が「Not Found」になるとき",
-        lead: "2026年10月15日より前の Mac 用ファイルで準備した Mac では、字幕の型が Windows のフォント（Yu Gothic UI）のままなので、文字が出ないことがあります。",
-        steps: [
-          { text: "上の［Mac 用のセットアップファイルをダウンロード］から新しいファイルをダウンロードし、もう一度セットアップする" },
-          { text: "DaVinci を開きなおし、字幕の型を置き直す（すでに置いた字幕は古い型のままなので、消して置き直す）" },
-          { text: "外部のお仕事で自分で［テキスト］を作るときも、フォントは［ヒラギノ角ゴシック］（または Hiragino Sans）をえらぶ" },
-        ],
-        note: {
-          kind: "tip",
-          title: "見本と少し字の形がちがっても大丈夫",
-          body: "Windows と Mac ではフォントが違うので、字の形がわずかに違います。大きさ・色・場所が見本と同じなら問題ありません。",
-        },
-      },
-      {
-        id: "check-titles",
-        title: "入ったか確かめる①：字幕の型",
-        lead: "DaVinci を開き、エディット画面の左下のエフェクトの欄を見ます。［タイトル］は、この欄の左の一覧にあります。",
-        steps: [
-          { text: "①左の一覧の「ツールボックス」の下にある［タイトル］を押す" },
-          { text: "②上の検索に「絆」と入れる" },
-          { text: "③右に「絆」の型が4つ並んでいれば、入っています" },
-        ],
-        image: {
-          src: img("g_find_title"),
-          alt: "エフェクトの欄。左の一覧のタイトル、上の検索欄、右に並んだ絆の型4つに番号つきの赤い枠",
-          marks: [
-            { n: 1, label: "タイトル" },
-            { n: 2, label: "検索" },
-            { n: 3, label: "絆の型" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "エフェクトの欄が出ていないとき",
-          body: "画面左上の魔法の杖のマークを押すと、左下に出てきます。",
-        },
-      },
-      {
-        id: "check-script",
-        title: "入ったか確かめる②：素材を並べるスクリプト",
-        steps: [
-          { text: "①上のメニューの［ワークスペース］を押す" },
-          { text: "②［スクリプト］にマウスを乗せる" },
-          { text: "③［絆_素材を並べる］が出ていれば、入っています（ここでは押さずに閉じる）" },
-        ],
-        image: {
-          src: img("arrange_menu"),
-          alt: "ワークスペースメニューを開き、スクリプトの中の絆_素材を並べるに赤い枠",
-          marks: [
-            { n: 1, label: "ワークスペース" },
-            { n: 2, label: "スクリプト" },
-            { n: 3, label: "絆_素材を並べる" },
-          ],
-        },
-        note: {
-          kind: "tip",
-          title: "どちらかが出てこないとき",
-          body: "DaVinci を開いたままセットアップした可能性があります。DaVinci をとじてから、もう一度セットアップのファイルをダブルクリックし、開きなおしてください。",
+          body: "教科書の画面の写真とボタンの名前は、DaVinci Resolve 21 で撮っています。ほかのバージョンでは名前や場所がちがうことがあるので、全部のパソコンを 21 にそろえてください。",
         },
       },
     ],
   },
   {
     slug: "worker",
-    no: 11,
+    no: 2,
     title: "案件を作る・提出動画を検品するパソコンの準備（職員の方へ）",
     summary:
       "「YouTube動画生成」で案件を作ることと、利用者が提出した動画を完成見本と自動で照合することは、事業所のパソコン1台で動く「ワーカー」が行います。その1台を準備します。",
-    forStaff: true,
     sections: [
       {
         id: "why",
@@ -920,26 +127,32 @@ export const GUIDE_CHAPTERS: GuideChapter[] = [
       },
     ],
   },
-  ...EDITING_CHAPTERS,
 ];
 
-export function getGuideChapter(slug: string): GuideChapter | undefined {
-  return GUIDE_CHAPTERS.find((c) => c.slug === slug);
+export function getStaffChapter(slug: string): GuideChapter | undefined {
+  return STAFF_CHAPTERS.find((c) => c.slug === slug);
 }
 
-/** 手順書の guide 参照（"subtitles#place" など）を、教科書ページの URL にする */
+/**
+ * 手順や辞典の参照を、教科書ページの URL にする。
+ * レッスンの slug（"cut-basics"）、職員の章（"worker#update"）、古い章の参照（"subtitles#place"）を受ける。
+ */
 export function guideHref(basePath: string, ref: string): string | null {
+  const lesson = getLesson(ref) ?? getLesson(legacyLessonSlug(ref) ?? "");
+  if (lesson) return `${basePath}/${lesson.slug}`;
   const [slug, section] = ref.split("#");
-  const chapter = getGuideChapter(slug);
+  const chapter = getStaffChapter(slug);
   if (!chapter) return null;
   const hasSection = section && chapter.sections.some((s) => s.id === section);
   return `${basePath}/${chapter.slug}${hasSection ? `#${section}` : ""}`;
 }
 
-/** 手順書の guide 参照から、リンクに出す章と節の名前を返す */
+/** リンクに出す名前 */
 export function guideLabel(ref: string): string | null {
+  const lesson = getLesson(ref) ?? getLesson(legacyLessonSlug(ref) ?? "");
+  if (lesson) return `${lesson.no} ${lesson.title}`;
   const [slug, section] = ref.split("#");
-  const chapter = getGuideChapter(slug);
+  const chapter = getStaffChapter(slug);
   if (!chapter) return null;
   const sec = chapter.sections.find((s) => s.id === section);
   return sec ? `${chapter.title}／${sec.title}` : chapter.title;

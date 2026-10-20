@@ -3,8 +3,7 @@
  *
  * 依頼書に「○○してください」と書かれていて「○○ってどうするの？」となったとき、
  * ○○で検索して引けるようにする。絆の案件に限らず、一般的な動画編集の依頼で出てくる言葉を集める。
- * プリセット（絆_型・絆_YouTube_720p など）は近道として紹介し、手順はプリセットが無くても
- * できる書き方にする。画面の名前は DaVinci Resolve 21 の日本語表示に合わせる。
+ * 用意した型やプリセットは使わず、自分で設定する書き方にする。画面の名前は DaVinci Resolve 21 の日本語表示に合わせる。
  * 確かめられなかった操作は書かない。
  *
  * データは ops/ の下に、画面の部分ごとに分けて置く。
@@ -74,10 +73,8 @@ export interface GuideOperation extends SearchableOperation {
   trouble?: string[];
   /** 関連する操作の id */
   related?: string[];
-  /** 写真つきで説明している教科書の節 "章slug#節id" */
-  chapterRef?: string;
-  /** プリセット（設定済みの型）を使う近道があるときの説明 */
-  shortcut?: string;
+  /** この操作を練習する教科書のレッスン（lessons/index.ts の slug） */
+  lesson?: string;
 }
 
 export const GUIDE_OPERATIONS: GuideOperation[] = [

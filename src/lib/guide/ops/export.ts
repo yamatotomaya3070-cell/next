@@ -22,14 +22,13 @@ export const OPS_EXPORT: GuideOperation[] = [
       "［すべてレンダー］が押せないときは、［レンダーキューに追加］を先に押したか確かめてください",
       "できたファイルが大きすぎて提出できないときは「ファイルを小さくして書き出す」を見てください",
     ],
-    shortcut: "絆の案件では、書き出しのプリセット［絆_YouTube_720p］をえらぶと、形式・大きさ・ファイルの軽さが全部そろいます。プリセットが一覧に無いときは「書き出しの設定を自分で決める」のとおりに入れてください。",
     related: ["export-settings", "export-small", "export-check"],
-    chapterRef: "export#render",
+    lesson: "dv-export",
   },
   {
     id: "export-settings",
     category: "export",
-    title: "書き出しの設定を自分で決める（プリセットが無いとき）",
+    title: "書き出しの設定を自分で決める",
     aliases: ["書き出し設定", "フォーマット", "コーデック", "解像度", "フレームレート", "H.264", "1080p", "720p", "フルHD", "プリセットが無い"],
     where: { page: "デリバー", panel: "左上のレンダー設定", button: "［ビデオ］タブ・［オーディオ］タブ" },
     what: "依頼書に「MP4・1920×1080・30fps」などと書いてあるとき、その形式で書き出せるように設定します。",
@@ -43,11 +42,10 @@ export const OPS_EXPORT: GuideOperation[] = [
     ],
     trouble: [
       "解像度やフレームレートが変えられないときは、タイムラインの設定に合わせて固定されています。職員の方に聞いてください",
-      "絆の案件の設定：フォーマット［MP4］・コーデック［H.264］・解像度［1280 × 720］・フレームレート［24］・［Rate Control］［固定ビットレート］・［Bit Rate］［600］、［オーディオ］タブの［トラックのデータレート］［128］",
+      "この教室の案件の設定：フォーマット［MP4］・コーデック［H.264］・解像度［1280 × 720］・フレームレート［24］・［Rate Control］［固定ビットレート］・［Bit Rate］［600］、［オーディオ］タブの［トラックのデータレート］［128］",
     ],
-    shortcut: "絆の案件では、プリセット［絆_YouTube_720p］をえらぶだけで、この設定が全部入ります。",
     related: ["export-basic", "export-small"],
-    chapterRef: "export#preset",
+    lesson: "dv-export",
   },
   {
     id: "export-small",
@@ -65,7 +63,7 @@ export const OPS_EXPORT: GuideOperation[] = [
     ],
     trouble: ["それでも 50MB をこえるときは、動画が長すぎます。職員の方に聞いてください"],
     related: ["export-settings", "export-basic"],
-    chapterRef: "export#preset",
+    lesson: "dv-export",
   },
   {
     id: "export-check",
@@ -82,6 +80,6 @@ export const OPS_EXPORT: GuideOperation[] = [
       { text: "直す所があれば、DaVinci で直して、もう一度書き出す" },
     ],
     related: ["export-basic", "compare-sample"],
-    chapterRef: "export#check",
+    lesson: "final-check",
   },
 ];

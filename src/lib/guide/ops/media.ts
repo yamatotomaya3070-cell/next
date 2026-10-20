@@ -20,7 +20,7 @@ export const OPS_MEDIA: GuideOperation[] = [
       "読み込むときに何か聞かれて分からないときは、押さずに職員の方に聞いてください",
     ],
     related: ["media-list-view", "media-bin", "timeline-place"],
-    chapterRef: "import#drag",
+    lesson: "dv-import",
   },
   {
     id: "media-list-view",
@@ -35,7 +35,7 @@ export const OPS_MEDIA: GuideOperation[] = [
       { text: "ファイル名の一部（例：_0、BGM）を入れると、その文字を含む素材だけが出る" },
     ],
     related: ["media-import", "timeline-append"],
-    chapterRef: "arrange#manual-voices",
+    lesson: "place-video",
   },
   {
     id: "media-bin",

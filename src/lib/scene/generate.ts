@@ -64,7 +64,7 @@ function buildPrompt(input: GenerateVideoProjectInput): string {
 2. problem(問題提起・ハルの悩みから入る) → basics(基礎/ミナ先生が図解で解説) → example(数字の具体例/comparison・number) → dialogue(よくある誤解をハルが代弁→ミナ先生が正す) → caution(注意点)。各章末に「引き」で次への期待をつなぐ。
 3. **エンディング(section=summary→cta)**: ここで**初めて結論をはっきり伝える**（ミナ先生が要点を1つにまとめ、ハルが「なるほど、そういうことか！」と腑に落ちる）。そのうえで最初の一歩(CTA)を提示。
 各章末に次への「引き」を作り、3〜10秒ごとに視覚が変わるようにする。
-シーン数は${minutes <= 3 ? "8〜12" : "12〜18"}程度に絞り、密度より“芯の通り”を優先する。
+シーン数は${sceneRange(minutes)}程度に絞り、密度より“芯の通り”を優先する。
 
 # 映像(visual.type)は次から選ぶ。金融の数字・比較・仕組みは必ず図解を使う:
 ${VISUAL_TYPES.join(" / ")}
@@ -115,7 +115,7 @@ syncTarget: 強調が結びつく画面/SEイベントID（任意、例 "sync:ze
 ${notesBlock}
 # 出力
 次の形の有効なJSONのみを出力（前置き・コードフェンス禁止）:
-{ "title": "動画タイトル", "theme": "${input.theme}", "audience": "${audience}", "goal": "この動画で理解させること", "targetMinutes": ${minutes}, "scenes": [ ...12〜24シーン... ] }`;
+{ "title": "動画タイトル", "theme": "${input.theme}", "audience": "${audience}", "goal": "この動画で理解させること", "targetMinutes": ${minutes}, "scenes": [ ...${sceneRange(minutes)}シーン... ] }`;
 }
 
 async function callGeminiJson(prompt: string): Promise<string> {
@@ -152,6 +152,13 @@ export async function generateVideoProject(
     console.error("Gemini SCENE生成に失敗。モックにフォールバックします:", err);
     return { project: buildMockVideoProject(input), provider: "mock(fallback)" };
   }
+}
+
+/** 完成尺に合うシーン数。1分（教科書の段3の最初の練習）は、骨格の章を1つずつだけにする */
+export function sceneRange(minutes: number): string {
+  if (minutes <= 1) return "4〜6";
+  if (minutes <= 3) return "8〜12";
+  return "12〜18";
 }
 
 /** 決定的なモック（新NISA相当の7段骨格）。キー無し・テスト・オフラインで使う。 */

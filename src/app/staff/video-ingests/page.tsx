@@ -96,7 +96,7 @@ export default async function VideoIngestsPage() {
                         size="sm"
                       />
                       <span className="text-xs text-ink-soft">
-                        {new Date(ing.created_at).toLocaleDateString("ja-JP")}
+                        {new Date(ing.created_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                       </span>
                     </div>
 

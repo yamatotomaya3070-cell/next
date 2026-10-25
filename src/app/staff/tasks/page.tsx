@@ -69,7 +69,7 @@ const COLUMNS: DataTableColumn<TaskRow>[] = [
     header: "作成日",
     render: (row) => (
       <span className="text-ink-soft">
-        {new Date(row.task.created_at).toLocaleDateString("ja-JP")}
+        {new Date(row.task.created_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
       </span>
     ),
   },

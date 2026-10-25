@@ -20,7 +20,6 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$workerTitle = "絆ワーカー"
 
 function Step($n, $msg) { Write-Host ""; Write-Host "[$n] $msg" -ForegroundColor Cyan }
 function Ok($msg) { Write-Host "  ○ $msg" -ForegroundColor Green }
@@ -45,11 +44,14 @@ function EnsureTool($cmd, $wingetId, $label) {
 }
 
 function StopWorker {
-  # start-worker.bat は窓の題名を「絆ワーカー…」にしている。動いていれば止める（更新のため）
-  $procs = Get-Process -Name cmd -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "$workerTitle*" }
+  # 動いていれば止める（更新のため）。窓の題名は npm が書き換え、Windows ターミナルでは cmd から読めないので、
+  # 題名ではなく「入れた場所のファイルを動かしている cmd / node」を探して止める
+  $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe' OR Name = 'node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($InstallDir, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
   foreach ($p in $procs) {
-    Info "動いているワーカー（PID $($p.Id)）をいったん止めます"
-    & taskkill /PID $p.Id /T /F | Out-Null
+    if (-not (Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue)) { continue }   # 先に止めた窓の子だった
+    Info "動いているワーカー（PID $($p.ProcessId)）をいったん止めます"
+    & taskkill /PID $p.ProcessId /T /F 2>&1 | Out-Null
   }
 }
 

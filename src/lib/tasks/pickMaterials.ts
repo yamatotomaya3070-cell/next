@@ -9,7 +9,8 @@ const DEFAULT_CHECKLIST = [
   "指定されたファイル形式で書き出した",
 ];
 
-function parseStringArray(content: string | null): string[] | null {
+/** 納品前チェックリスト（JSON の文字列の配列）なら項目を返す。そうでなければ null */
+export function parseStringArray(content: string | null): string[] | null {
   if (!content) return null;
   try {
     const parsed: unknown = JSON.parse(content);

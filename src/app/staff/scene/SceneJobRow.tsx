@@ -46,14 +46,14 @@ export function SceneJobRow({
       </div>
       <p className="mt-1 text-xs text-ink-soft">
         {job.progress}% ／ 目安 約{job.target_minutes}分 ／ 難易度 {job.difficulty} ／{" "}
-        {new Date(job.created_at).toLocaleString("ja-JP")}
+        {new Date(job.created_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
         {pc && ` ／ 作業PC: ${pc}`}
         {isActive && !isSilent && "（処理中…）"}
       </p>
 
       {isSilent && (
         <p className="mt-2 rounded-xl bg-danger-soft p-3 text-sm text-danger">
-          作業PC（{pc}）から {new Date(job.locked_at!).toLocaleString("ja-JP")} を最後に連絡がありません。
+          作業PC（{pc}）から {new Date(job.locked_at!).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })} を最後に連絡がありません。
           「{SCENE_JOB_STATUS_LABELS[job.status]}」の途中で、PCの電源が切れた・スリープした・処理が強制終了された可能性があります。
           作業PCの画面と、作業PCの記録ファイル（一時フォルダの kizuna-scene/scene-worker.log）を確かめてください。
         </p>

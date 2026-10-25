@@ -244,7 +244,7 @@ export default async function HomePage() {
                   </span>
                   {a.completed_at && (
                     <span className="text-xs text-ink-soft">
-                      {new Date(a.completed_at).toLocaleDateString("ja-JP")}{" "}
+                      {new Date(a.completed_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}{" "}
                       納品完了
                     </span>
                   )}

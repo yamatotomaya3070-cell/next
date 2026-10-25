@@ -15,6 +15,7 @@ import {
   IconUsers,
   IconVideo,
 } from "@/components/ui/icons";
+import { parseStringArray } from "@/lib/tasks/pickMaterials";
 import { AssignForm } from "./AssignForm";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +89,13 @@ export default async function StaffTaskDetailPage({
     .filter((m) => m.kind === "source_assets" && mediaUrlByMaterialId.has(m.id))
     .map((m) => ({ material: m, url: mediaUrlByMaterialId.get(m.id)! }));
   const hasDeliverables = Boolean(sampleUrl) || sourceAssets.length > 0;
+  // 納品前チェックリストは JSON の配列で保存されているので、箇条書きにして見せる
+  const checklistByMaterialId = new Map(
+    materials
+      .filter((m) => m.kind === "revision_note")
+      .map((m) => [m.id, parseStringArray(m.content)] as const)
+      .filter((entry): entry is readonly [string, string[]] => entry[1] !== null),
+  );
 
   return (
     <PageContainer>
@@ -283,7 +291,13 @@ export default async function StaffTaskDetailPage({
                     </button>
                   </form>
                 )}
-                {material.content && (
+                {checklistByMaterialId.has(material.id) ? (
+                  <ul className="mt-3 max-h-64 list-disc space-y-1.5 overflow-auto rounded-xl bg-page p-4 pl-8 text-sm leading-relaxed text-ink">
+                    {checklistByMaterialId.get(material.id)!.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                ) : material.content && (
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-page p-4 text-sm leading-relaxed text-ink">
                     {material.content}
                   </pre>

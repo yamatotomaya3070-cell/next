@@ -276,6 +276,7 @@ export default async function StaffUserDetailPage({
                   （{approverName ? `${approverName} さん` : "スタッフ"}・
                   {new Date(latestApproval!.created_at).toLocaleDateString(
                     "ja-JP",
+                    { timeZone: "Asia/Tokyo" },
                   )}
                   ）
                 </span>
@@ -389,7 +390,7 @@ export default async function StaffUserDetailPage({
                     className="rounded-xl bg-page p-3 text-sm"
                   >
                     <p className="text-ink-soft">
-                      {new Date(apt.recorded_at).toLocaleDateString("ja-JP")} ・{" "}
+                      {new Date(apt.recorded_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })} ・{" "}
                       {APTITUDE_LABELS[apt.key]} ・ 評価 {apt.rating}/5
                     </p>
                     {apt.note && <p className="mt-1 text-ink">{apt.note}</p>}

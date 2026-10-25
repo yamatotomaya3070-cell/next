@@ -4,6 +4,7 @@ import {
   pickChecklistItems,
   pickDownloadableMaterials,
   pickInstructionSheet,
+  parseStringArray,
 } from "./pickMaterials";
 
 function material(partial: Partial<TaskMaterial>): TaskMaterial {
@@ -57,6 +58,22 @@ describe("pickChecklistItems", () => {
   it("表の行をチェック項目として読み込まない", () => {
     const items = pickChecklistItems([instructionSheet]);
     expect(items.some((i) => i.includes("|"))).toBe(false);
+  });
+});
+
+describe("parseStringArray", () => {
+  it("チェックリストの JSON を項目の配列にする", () => {
+    expect(parseStringArray(checklist.content)).toEqual([
+      "字幕が全部ある",
+      "1280x720 で書き出した",
+    ]);
+  });
+
+  it("表・空・壊れた JSON は null", () => {
+    expect(parseStringArray(instructionSheet.content)).toBeNull();
+    expect(parseStringArray(null)).toBeNull();
+    expect(parseStringArray("[]")).toBeNull();
+    expect(parseStringArray("[1,")).toBeNull();
   });
 });
 

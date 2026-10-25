@@ -62,7 +62,14 @@ function describeOtherError(e: unknown, stage: SceneJobStatus | null): string {
 /** 処理中は1分ごとに locked_at を更新する。途絶えたら画面に「作業PCから連絡がない」と出る */
 function startHeartbeat(client: SupabaseClient, id: string) {
   const timer = setInterval(() => {
-    void client.from("scene_jobs").update({ locked_at: new Date().toISOString() }).eq("id", id);
+    // Supabase の問い合わせは then を呼ぶまで送られない（void だけだと送られず、画面に「連絡がない」と出ていた）
+    client
+      .from("scene_jobs")
+      .update({ locked_at: new Date().toISOString() })
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) console.error(`  連絡（locked_at の更新）に失敗: ${error.message}`);
+      });
   }, HEARTBEAT_MS);
   return () => clearInterval(timer);
 }

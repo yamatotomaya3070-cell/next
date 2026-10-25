@@ -2,6 +2,7 @@
 import type { Lesson } from "./types";
 
 const img = (name: string) => `/guide/img/${name}.jpg`;
+const video = (name: string, title: string) => ({ src: `/guide/video/${name}.mp4`, poster: `/guide/video/${name}.jpg`, title });
 
 export const STAGE2_FINISH: Lesson[] = [
   {
@@ -109,14 +110,17 @@ export const STAGE2_FINISH: Lesson[] = [
       {
         title: "縁取りを付けたら、文字が消えた",
         body: "［外側のみ］にチェックが入っていないと、黒い縁が文字の中までぬりつぶして、文字が見えなくなります。［外側のみ］にチェックを入れます。",
+        video: video("pit-outline", "［外側のみ］で文字を見せる（25秒）"),
       },
       {
         title: "数字の欄で Ctrl + A を押さない",
-        body: "数字の欄で Ctrl + A を押すと、タイムラインの全部のクリップがえらばれて、全部の見た目が変わってしまいます。数字の欄はクリックして、そのまま数字を打ちます。",
+        body: "数字の欄で Ctrl + A を押すと、タイムラインの全部のクリップがえらばれて、全部の見た目が変わってしまいます。まちがえて押したときは Esc でえらぶのをやめます。数字の欄はダブルクリックして、そのまま数字を打ちます。",
+        video: video("pit-numfield", "全部のクリップがえらばれてしまうようす（30秒）"),
       },
       {
         title: "［テキスト+］ではなく［テキスト］",
         body: "検索すると［テキスト+］も出ますが、設定が多くて迷いやすいので、［テキスト］を使います。",
+        video: video("pit-textplus", "［テキスト］と［テキスト+］の場所（15秒）"),
       },
     ],
     checks: [
@@ -134,6 +138,7 @@ export const STAGE2_FINISH: Lesson[] = [
     minutes: 30,
     material: "2-6 の続き（声が3本、字幕が1つ）",
     kit: "sub-practice",
+    video: video("sub-all", "字幕をコピーして増やし、声に合わせる（1分20秒）"),
     parts: [
       {
         title: "コピーして増やす",
@@ -213,6 +218,7 @@ export const STAGE2_FINISH: Lesson[] = [
       {
         title: "見た目が1つだけちがう",
         body: "新しく［テキスト］を置き直すと、見た目が初めの形にもどります。2つ目からは必ずコピーで増やします。",
+        video: video("pit-copylook", "置き直したときと、コピーしたとき（30秒）"),
       },
     ],
     checks: [
@@ -231,6 +237,7 @@ export const STAGE2_FINISH: Lesson[] = [
     minutes: 30,
     material: "映像と声が入った1分の動画（字幕なしで練習します）と台本",
     kit: "finish-practice",
+    video: video("telop", "強調テロップを、目立つ見た目でふわっと出す（2分10秒）"),
     words: [
       { term: "強調テロップ", meaning: "大事な言葉や数字だけを、大きく目立たせて出す文字" },
     ],
@@ -321,6 +328,7 @@ export const STAGE2_FINISH: Lesson[] = [
       {
         title: "図の中の文字と重なる",
         body: "図の場面には、はじめから文字が入っていることがあります。重なるときは、テロップの場所をずらすか、その場面には入れません。",
+        video: video("pit-overlap", "テロップの場所をずらす（30秒）"),
       },
     ],
     checks: [
@@ -340,6 +348,7 @@ export const STAGE2_FINISH: Lesson[] = [
     minutes: 30,
     material: "1分の動画と、BGM の候補2曲（2-8 と同じ素材）",
     kit: "finish-practice",
+    video: video("bgm", "BGM を並べて、音量を下げ、最後をフェードアウトする（2分）"),
     words: [
       { term: "BGM", meaning: "うしろで流す音楽" },
       { term: "フェードアウト", meaning: "音をだんだん小さくして消すこと。反対はフェードイン" },
@@ -440,13 +449,13 @@ export const STAGE2_FINISH: Lesson[] = [
     slug: "se",
     stage: 2,
     no: "2-10",
-    title: "効果音を入れる",
+    title: "効果音（SE）を入れる",
     goal: "強調テロップが出る瞬間などに、合った効果音を、ちょうどよい大きさで鳴らせる。",
     minutes: 20,
     material: "2-8 で強調テロップを入れた1分の動画と、効果音6種類（2-8 と同じ素材）",
     kit: "finish-practice",
     words: [
-      { term: "効果音", meaning: "「ポン」「ジャン」など、合図のための短い音" },
+      { term: "効果音（SE）", meaning: "「ポン」「ジャン」など、合図のための短い音。お仕事では「SE（エスイー）」とよぶことが多い。依頼書に「SE」とあれば効果音のこと" },
     ],
     parts: [
       {
@@ -502,6 +511,7 @@ export const STAGE2_FINISH: Lesson[] = [
       {
         title: "効果音が言葉にかぶる",
         body: "言葉と重なって聞きにくいときは、言葉と言葉の間にずらすか、音量をもっと下げます。",
+        video: video("pit-se", "効果音をずらして、音量を下げる（40秒）"),
       },
     ],
     checks: [
@@ -579,21 +589,35 @@ export const STAGE2_FINISH: Lesson[] = [
           { text: "まだ1か所だけ小さいときは、そのクリップだけえらび、インスペクタの［ボリューム］を +3 にする" },
         ],
       },
+      {
+        title: "声・効果音・BGM のバランスを見る",
+        lead: "音の大きさは、いつも「声（メイン音声）＞ 効果音（SE）＞ BGM」の順にします。編集する人は、どの動画でも必ずこの順にそろえます。",
+        steps: [
+          { text: "BGM と効果音を入れた動画（2-9・2-10）を、最初から再生する", key: "スペース" },
+          { text: "声が出ている所で、メーターが -6〜-3 まで上がるか見る" },
+          { text: "効果音が鳴る所で、声よりはっきり小さく聞こえるか見る。声より目立つときは、効果音のボリュームを下げる" },
+          { text: "声のうしろで BGM が小さく聞こえるか見る。声が聞きとりにくいときは、BGM のボリュームを下げる" },
+          { text: "依頼書に数字（「BGM は -20dB」「SE は -12dB」など）が書いてあれば、その数字に合わせる。お仕事の依頼書には書いてあることが多い" },
+        ],
+      },
     ],
     rules: [
       "声のいちばん大きい所で、メーターが -6〜-3 まで上がればちょうどよい",
       "0 に届いて赤くなる所は大きすぎ（音がわれる）。-15 までしか上がらなければ小さすぎ",
       "BGM を入れる前にそろえる",
+      "大きさの順は、声（メイン音声）＞ 効果音（SE）＞ BGM。依頼書に数字があれば、数字のほうを守る",
     ],
     pitfalls: [
       {
         title: "ノーマライズしても、場面の大きさの差が残る",
         body: "［レベル設定］が［相対］のままだと、全部をまとめて同じだけ上げ下げするので、場面どうしの差は残ります。［個別］にすると、1つずつそろえます。",
+        video: video("pit-normalize", "［相対］と［個別］のちがい（1分15秒）"),
       },
     ],
     checks: [
       "どの場面も、メーターが -6〜-3 くらいまで上がる",
       "赤くなる所がない",
+      "声 ＞ 効果音 ＞ BGM の順に聞こえる",
     ],
     ops: ["mixer-meter", "audio-normalize", "volume-clip"],
   },

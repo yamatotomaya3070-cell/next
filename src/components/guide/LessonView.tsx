@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { LESSON_STAGES, PRACTICE_KITS, neighborLessons, type GuideExample, type Lesson, type LessonImage, type LessonPart } from "@/lib/guide/lessons";
+import { LESSON_STAGES, PRACTICE_KITS, neighborLessons, type GuideExample, type Lesson, type LessonImage, type LessonPart, type LessonVideo } from "@/lib/guide/lessons";
 import { getOperation, operationHref, type GuideOperation } from "@/lib/guide/operations";
 import { LessonDoneButton } from "./LessonDoneButton";
 import { PracticeCheck } from "./PracticeCheck";
-import { IconAlert, IconBook, IconCheckCircle, IconDownload, IconChevronLeft, IconChevronRight } from "@/components/ui/icons";
+import { IconAlert, IconBook, IconCheckCircle, IconDownload, IconChevronLeft, IconChevronRight, IconVideo } from "@/components/ui/icons";
 
 interface LessonViewProps {
   lesson: Lesson;
@@ -57,6 +57,36 @@ function StepImage({ image }: { image: LessonImage }) {
   );
 }
 
+/** 操作動画。声と字幕が入っているので、音を出せない所でも見られる */
+function LessonVideoPlayer({ video }: { video: LessonVideo }) {
+  return (
+    <figure className="mt-3">
+      <figcaption className="mb-2 flex items-center gap-2 text-[15px] font-bold text-ink">
+        <IconVideo className="size-5 text-primary" />
+        動画で見る：{video.title}
+      </figcaption>
+      <video
+        src={video.src}
+        poster={video.poster}
+        controls
+        preload="none"
+        playsInline
+        aria-label={`操作動画：${video.title}`}
+        className="aspect-video w-full rounded-xl border border-line bg-black shadow-sm"
+      />
+    </figure>
+  );
+}
+
+function StepNote({ label, children }: { label: string; children: string }) {
+  return (
+    <span className="mt-1 block text-[15px] text-ink-soft">
+      <span className="mr-1 rounded bg-page px-1.5 py-0.5 text-xs font-bold text-ink">{label}</span>
+      {children}
+    </span>
+  );
+}
+
 function PartBlock({ part, index }: { part: LessonPart; index: number }) {
   const id = `part-${index + 1}`;
   return (
@@ -65,17 +95,14 @@ function PartBlock({ part, index }: { part: LessonPart; index: number }) {
         {part.title}
       </h2>
       {part.lead && <p className="mt-2 text-[15px] leading-relaxed text-ink-soft">{part.lead}</p>}
+      {part.video && <LessonVideoPlayer video={part.video} />}
       <ol className="mt-4 list-decimal space-y-4 pl-7 text-[17px] leading-relaxed text-ink marker:font-bold marker:text-primary">
         {part.steps.map((step, i) => (
           <li key={i}>
             {step.text}
             {step.key && <Kbd>{step.key}</Kbd>}
-            {step.mac && (
-              <span className="mt-1 block text-[15px] text-ink-soft">
-                <span className="mr-1 rounded bg-page px-1.5 py-0.5 text-xs font-bold text-ink">Mac のとき</span>
-                {step.mac}
-              </span>
-            )}
+            {step.pad && <StepNote label="トラックパッドのとき">{step.pad}</StepNote>}
+            {step.mac && <StepNote label="Mac のとき">{step.mac}</StepNote>}
             {step.image && <StepImage image={step.image} />}
           </li>
         ))}
@@ -175,6 +202,7 @@ export function LessonView({ lesson, basePath, isDone = null }: LessonViewProps)
             </a>
           )}
         </div>
+        {lesson.video && <LessonVideoPlayer video={lesson.video} />}
       </header>
 
       {lesson.words && lesson.words.length > 0 && (
@@ -219,12 +247,15 @@ export function LessonView({ lesson, basePath, isDone = null }: LessonViewProps)
               つまずきやすい所
             </h2>
             {lesson.pitfalls.map((p) => (
-              <div key={p.title} className="flex gap-3 rounded-xl bg-warning-soft p-4 text-[15px] leading-relaxed text-amber-900">
-                <IconAlert className="mt-0.5 h-5 w-5 shrink-0" />
-                <p>
-                  <span className="block font-bold">{p.title}</span>
-                  {p.body}
-                </p>
+              <div key={p.title} className="rounded-xl bg-warning-soft p-4 text-[15px] leading-relaxed text-amber-900">
+                <div className="flex gap-3">
+                  <IconAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                  <p>
+                    <span className="block font-bold">{p.title}</span>
+                    {p.body}
+                  </p>
+                </div>
+                {p.video && <LessonVideoPlayer video={p.video} />}
               </div>
             ))}
           </section>

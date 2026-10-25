@@ -106,4 +106,17 @@ describe("教科書への参照", () => {
       expect(PRACTICE_KEYS[l.autoCheck!], l.no).toBeTruthy();
     }
   });
+
+  it("動画と写真のファイルが public にある", () => {
+    const files: string[] = [];
+    for (const l of LESSONS) {
+      if (l.video) files.push(l.video.src, l.video.poster);
+      for (const p of l.parts) {
+        if (p.video) files.push(p.video.src, p.video.poster);
+        for (const s of p.steps) if (s.image) files.push(s.image.src);
+      }
+      for (const pf of l.pitfalls ?? []) if (pf.video) files.push(pf.video.src, pf.video.poster);
+    }
+    for (const f of files) expect(existsSync(`public${f}`), f).toBe(true);
+  });
 });

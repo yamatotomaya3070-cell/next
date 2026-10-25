@@ -5,6 +5,7 @@
  *   - 1手順＝1操作。押す所は画面の画像と赤い番号で見せる
  *   - 言葉は初めて出たレッスンで説明する。目安は数字で書く
  *   - Mac で違う所だけ、その手順の中に mac で短く出す（別の道は作らない）
+ *   - 文字と写真だけでは分かりにくい所は、声と字幕の付いた操作動画（public/guide/video）を付ける
  */
 import type { PracticeCheckId } from "../practiceCheck/checks";
 import type { PracticeKitId } from "./kits.generated";
@@ -29,6 +30,14 @@ export interface LessonImage {
   marks?: GuideMark[];
 }
 
+/** 声と字幕の付いた操作動画（poc/guide で作る）。src と poster は public からのパス */
+export interface LessonVideo {
+  src: string;
+  poster: string;
+  /** 何の動画か（「ダブルクリックのしかた」など） */
+  title: string;
+}
+
 export interface LessonStep {
   /** やること（1つの操作） */
   text: string;
@@ -36,6 +45,8 @@ export interface LessonStep {
   key?: string;
   /** Mac で違うときだけ（キーや画面の違い） */
   mac?: string;
+  /** ノートパソコンのトラックパッドで違うときだけ（Windows・Mac 共通） */
+  pad?: string;
   image?: LessonImage;
 }
 
@@ -43,6 +54,8 @@ export interface LessonStep {
 export interface LessonPart {
   title: string;
   lead?: string;
+  /** このまとまりを通しで見せる動画 */
+  video?: LessonVideo;
   steps: LessonStep[];
 }
 
@@ -54,6 +67,8 @@ export interface LessonWord {
 export interface LessonPitfall {
   title: string;
   body: string;
+  /** 起きたときの画面と、直し方を見せる動画 */
+  video?: LessonVideo;
 }
 
 /** 0〜2 は1つずつ覚える段。3・4 は案件の形で全部をまとめてやる段（出来は職員が見る） */
@@ -70,6 +85,8 @@ export interface Lesson {
   goal: string;
   /** かかる時間の目安（分） */
   minutes: number;
+  /** レッスン全体を通しで見せる動画（ページの上に出す） */
+  video?: LessonVideo;
   /** 練習に使う素材の説明 */
   material?: string;
   /** 練習素材の ZIP（scripts/practice/buildPracticeKits.ts で作る） */

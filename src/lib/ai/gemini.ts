@@ -16,6 +16,7 @@ import type {
   ProposeStyleGuidesInput,
   StyleGuideProposal,
 } from "./types";
+import { geminiTextModel } from "./geminiModel";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeStyleGuide } from "@/lib/style-guide/schema";
 import { normalizePracticeScript } from "@/lib/practice-script/schema";
@@ -70,7 +71,7 @@ async function callGemini(
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY が未設定です");
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = geminiTextModel();
 
   const res = await fetch(`${API_BASE}/${model}:generateContent`, {
     method: "POST",

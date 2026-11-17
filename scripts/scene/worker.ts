@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node
 import { freemem, hostname, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { generateVideoProject } from "@/lib/scene/generate";
+import { assertAiGenerated, generateVideoProject } from "@/lib/scene/generate";
 import { validateVideoProject } from "@/lib/scene/validate";
 import { HEARTBEAT_MS } from "@/lib/scene/stepFailure";
 import { SCENE_JOB_STATUS_LABELS, type SceneJob, type SceneJobStatus } from "@/lib/types";
@@ -110,12 +110,15 @@ async function processJob(client: SupabaseClient, job: SceneJob) {
 
   // 1) 設計図（SCENE）生成
   await setStatus(client, job.id, "generating_scene", 10);
-  const { project, provider } = await generateVideoProject({
+  const generated = await generateVideoProject({
     theme: job.theme,
     targetMinutes: job.target_minutes,
     audience: job.audience,
     notes: notesForPrompt,
   });
+  // AI で作れなかったとき、決まった骨格（中身は新NISA）で案件を作らない
+  assertAiGenerated(generated);
+  const { project, provider } = generated;
   const report = validateVideoProject(project);
   if (!report.ok) {
     throw new Error(`設計図の検証に失敗: ${report.issues.map((i) => i.message).join(" / ")}`);
@@ -213,7 +216,7 @@ async function drain(client: SupabaseClient) {
 async function main() {
   const client = sb();
   const watch = process.argv.includes("--watch");
-  if (!process.env.GEMINI_API_KEY) console.warn("⚠ GEMINI_API_KEY 未設定：音声・生成がmock/無音になります");
+  if (!process.env.GEMINI_API_KEY) console.warn("⚠ GEMINI_API_KEY 未設定：AIで台本を作れないので、案件は「失敗」になります");
   mkdirSync(WORK_ROOT, { recursive: true });
   console.log(`SCENEワーカー起動（${WORKER_ID}）${watch ? " watchモード" : ""}　記録: ${LOG_FILE}`);
   await drain(client);

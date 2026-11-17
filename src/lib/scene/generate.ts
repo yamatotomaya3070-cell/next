@@ -12,6 +12,7 @@ import {
   DELIVERY_STYLES, EMOTIONS, SECTIONS, VISUAL_TYPES,
   normalizeVideoProject, type VideoProject,
 } from "./schema";
+import { geminiTextModel } from "../ai/geminiModel";
 
 export interface GenerateVideoProjectInput {
   theme: string; // 例:「新NISAって結局何？」
@@ -23,6 +24,25 @@ export interface GenerateVideoProjectInput {
 export interface GenerateVideoProjectResult {
   project: VideoProject;
   provider: string; // gemini | mock | mock(fallback)
+  /** AI で作れず、決まった骨格（mock）を返したときの理由 */
+  mockReason?: string;
+}
+
+/**
+ * AI で作れなかった設計図を、案件づくりに使わせない。
+ * mock は中身が新NISAで固定なので、そのまま進めると、どのテーマでも同じ動画の案件ができてしまう
+ * （画面には「完了」と出るので気づけない）。
+ */
+export function assertAiGenerated(result: GenerateVideoProjectResult): void {
+  if (result.provider === "gemini") return;
+  throw new Error(
+    [
+      "AI（Gemini）で台本を作れなかったので、案件を作るのをやめました。",
+      "（このまま進めると、どのテーマでも同じ「新NISA」の動画になってしまうためです）",
+      `理由: ${result.mockReason ?? "不明"}`,
+      "作業PCで「更新（職員用）.bat」を実行してから、もう一度案件を作ってください。直らないときは、この文を開発担当に送ってください。",
+    ].join("\n"),
+  );
 }
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -121,7 +141,7 @@ ${notesBlock}
 async function callGeminiJson(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY が未設定です");
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = geminiTextModel();
   const res = await fetch(`${API_BASE}/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -142,7 +162,11 @@ export async function generateVideoProject(
   input: GenerateVideoProjectInput,
 ): Promise<GenerateVideoProjectResult> {
   if (!process.env.GEMINI_API_KEY) {
-    return { project: buildMockVideoProject(input), provider: "mock" };
+    return {
+      project: buildMockVideoProject(input),
+      provider: "mock",
+      mockReason: "設定ファイル（.env.local）に GEMINI_API_KEY がありません",
+    };
   }
   try {
     const raw = await callGeminiJson(buildPrompt(input));
@@ -150,7 +174,11 @@ export async function generateVideoProject(
     return { project: normalizeVideoProject(parsed, input.theme), provider: "gemini" };
   } catch (err) {
     console.error("Gemini SCENE生成に失敗。モックにフォールバックします:", err);
-    return { project: buildMockVideoProject(input), provider: "mock(fallback)" };
+    return {
+      project: buildMockVideoProject(input),
+      provider: "mock(fallback)",
+      mockReason: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

@@ -3,6 +3,7 @@
 // 何が足りないかを ○× で出し、1つでも × があれば終了コード 1 にする。
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { geminiTextModel } from "../../src/lib/ai/geminiModel";
 
 // worker.ts と同じ読み方で .env.local を読む
 if (existsSync(".env.local")) {
@@ -36,6 +37,22 @@ async function httpOk(url: string, headers: Record<string, string> = {}): Promis
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     return { ok: res.ok, detail: `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function geminiAnswers(model: string, apiKey: string): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ contents: [{ parts: [{ text: "はい、とだけ答えてください" }] }] }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS * 2),
+    });
+    if (res.ok) return { ok: true, detail: "HTTP 200" };
+    const body = (await res.text()).replace(/\s+/g, " ").slice(0, 200);
+    return { ok: false, detail: `HTTP ${res.status} ${body}` };
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : String(e) };
   }
@@ -86,6 +103,14 @@ async function run(): Promise<Check[]> {
     });
     const gem = await httpOk(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=${process.env.GEMINI_API_KEY}`);
     checks.push({ label: "Gemini API キー", ok: gem.ok, hint: `${gem.detail}。GEMINI_API_KEY を確かめてください` });
+    // 台本を作るモデルを実際に1回呼ぶ。提供が終わったモデルは、一覧には出るのに呼ぶと失敗する
+    const model = geminiTextModel();
+    const said = await geminiAnswers(model, process.env.GEMINI_API_KEY!);
+    checks.push({
+      label: `台本を作るAI（${model}）が答える`,
+      ok: said.ok,
+      hint: `${said.detail}。「更新（職員用）.bat」を実行してください。直らないときは開発担当に伝えてください`,
+    });
   }
   return checks;
 }

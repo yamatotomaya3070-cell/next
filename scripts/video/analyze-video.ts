@@ -4,7 +4,7 @@
  * これが通れば「実案件動画から学習して生成レベルを上げる」(docs/00011 §5 Loop A)が実装可能。
  *
  * 実行: npx tsx scripts/video/analyze-video.ts <動画パス>
- * モデル: 既定 gemini-2.0-flash（動画非対応なら GEMINI_VIDEO_MODEL で上書き）
+ * モデル: 既定 gemini-2.5-flash（動画非対応なら GEMINI_VIDEO_MODEL で上書き）
  */
 import { readFileSync } from "node:fs";
 import { loadEnvLocal } from "./env";
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   if (!videoPath) throw new Error("動画パスを指定してください");
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY が未設定です");
-  const model = process.env.GEMINI_VIDEO_MODEL || process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_VIDEO_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   const base64 = readFileSync(videoPath).toString("base64");
   console.log(`model: ${model} / video: ${videoPath} / base64長: ${Math.round(base64.length / 1024)}KB`);

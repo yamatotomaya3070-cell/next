@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isWorkerSilent } from "@/lib/scene/stepFailure";
+import { isPendingTooLong, isWorkerSilent } from "@/lib/scene/stepFailure";
 import { SCENE_JOB_STATUS_LABELS, type SceneJob } from "@/lib/types";
 
 /** locked_by は「PC名:プロセス番号」。画面にはPC名だけ出す */
@@ -28,6 +28,8 @@ export function SceneJobRow({
   const pc = pcName(job.locked_by);
   // 処理中なのに作業PCから連絡が来ない＝PCの電源・スリープ・強制終了などで止まっている
   const isSilent = isActive && isWorkerSilent(job.locked_at, now);
+  // 処理を始める前の依頼は locked_at が無いので、登録からの時間で見る
+  const isUnclaimed = job.status === "pending" && isPendingTooLong(job.created_at, now);
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-5">
@@ -56,6 +58,13 @@ export function SceneJobRow({
           作業PC（{pc}）から {new Date(job.locked_at!).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })} を最後に連絡がありません。
           「{SCENE_JOB_STATUS_LABELS[job.status]}」の途中で、PCの電源が切れた・スリープした・処理が強制終了された可能性があります。
           作業PCの画面と、作業PCの記録ファイル（一時フォルダの kizuna-scene/scene-worker.log）を確かめてください。
+        </p>
+      )}
+
+      {isUnclaimed && (
+        <p className="mt-2 rounded-xl bg-warning-soft p-3 text-sm text-ink">
+          作業PCがまだこの依頼を始めていません。ほかの依頼を作っている途中なら、順番待ちです（1本20〜40分ほど）。
+          「処理中」の依頼が無いのに待ったままなら、作業PCの電源が切れているか、「絆ワーカー」の窓が閉じています。作業PCのデスクトップの「絆ワーカーを起動」をダブルクリックするか、作業PCを再起動してください。
         </p>
       )}
 

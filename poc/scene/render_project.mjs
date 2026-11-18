@@ -77,7 +77,11 @@ async function synthLine(line, file) {
       if (!b64) throw new Error('no audio');
       writeFileSync(file, wrapPcmToWav(Buffer.from(b64, 'base64'), 24000));
       return;
-    } catch (e) { if (a === 3) { console.error('  TTS失敗→無音', e.message); ff(['-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-t', '1.5', file]); } else await new Promise((r) => setTimeout(r, 2 ** a * 1000)); }
+    } catch (e) {
+      // 無音で代わりにすると、声が1本抜けた案件がそのまま登録されてしまう。止めて、画面に理由を出す
+      if (a === 3) throw new Error(`セリフの声を作れませんでした（3回やり直しても失敗）: 「${line.text.slice(0, 30)}」 ${e.message}`);
+      await new Promise((r) => setTimeout(r, 2 ** a * 1000));
+    }
   }
 }
 

@@ -3,7 +3,7 @@
 //   ffmpeg / sharp / Gemini が必要（Vercel等では動かない。職員PCで常駐する）。
 //   使い方: npm run scene:worker            （1回だけ全pendingを処理）
 //           npm run scene:worker -- --watch  （常駐してポーリング）
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { freemem, hostname, tmpdir, totalmem } from "node:os";
 import { join } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -39,6 +39,22 @@ const VOX_DIR = `${WORK_ROOT}/vox`;
 const RM_OPTS = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 } as const;
 // このPCでの処理の記録。止まった理由はアプリの画面にも出すが、PCにも残して後から見られるようにする
 const LOG_FILE = `${WORK_ROOT}/scene-worker.log`;
+
+// 案件ごとの作業フォルダ（1件 約60MB）は、作り直しや調べ物のために新しいものだけ残す
+const KEEP_JOB_DIRS = 5;
+
+/** 古い作業フォルダを消す。消せなくても（同期ソフトが掴んでいる等）案件の処理は続ける */
+function pruneOldJobDirs() {
+  try {
+    const dirs = readdirSync(OUT_ROOT)
+      .filter((n) => n.startsWith("job_"))
+      .map((n) => ({ path: `${OUT_ROOT}/${n}`, mtime: statSync(`${OUT_ROOT}/${n}`).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    for (const d of dirs.slice(KEEP_JOB_DIRS)) rmSync(d.path, RM_OPTS);
+  } catch (e) {
+    console.warn(`  古い作業フォルダを消せませんでした: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
 function sb(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -176,10 +192,16 @@ async function claimNext(client: SupabaseClient): Promise<SceneJob | null> {
     .limit(1);
   const job = (data ?? [])[0] as SceneJob | undefined;
   if (!job) return null;
-  // ロック（楽観：pendingのままの行だけ更新）
+  // ロック（楽観：pendingのままの行だけ更新）。status も同時に変えないと、2台目のワーカーも
+  // 同じ行を pending のまま見つけて拾い、同じ案件が二重にできる
   const { data: locked } = await client
     .from("scene_jobs")
-    .update({ locked_by: WORKER_ID, locked_at: new Date().toISOString(), started_at: new Date().toISOString() })
+    .update({
+      status: "generating_scene",
+      locked_by: WORKER_ID,
+      locked_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+    })
     .eq("id", job.id)
     .eq("status", "pending")
     .select("*")
@@ -209,6 +231,7 @@ async function drain(client: SupabaseClient) {
       await client.from("scene_job_events").insert({ job_id: job.id, stage: "failed", event: "failed", detail: msg });
     } finally {
       stopHeartbeat();
+      pruneOldJobDirs();
     }
   }
 }

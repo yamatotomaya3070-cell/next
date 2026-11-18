@@ -52,17 +52,31 @@ const VOICE_GAIN_DB = -3;
 const VOICE_RATE = 48000;
 const SAMPLES_PER_F = VOICE_RATE / FPS;
 const VOICE_SAFETY_SAMPLES = SAMPLES_PER_F / 4;
-// 声を lenF フレームちょうどに切りそろえ、前に leadF・後ろに trailF フレームの無音を足して書き出す
-function copyVoice(src, dst, { leadF, lenF, trailF }) {
+// 48kHz に変換すると、合成音声の元のピーク（-1dB 前後）が最大 2〜3dB 持ち上がることがある。
+// 一律 -3dB だけだと関門（verifyPackage: ピーク -2dB 以下）を超える声が出るので、超えた声だけ追加で下げる。
+const VOICE_MAX_PEAK_DB = -3;
+function peakDb(file) {
+  const r = spawnSync('ffmpeg', ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+  const m = /max_volume:\s*(-?[\d.]+) dB/.exec(r.stderr ?? '');
+  if (!m) throw new Error(`セリフ音声の音量を測れませんでした: ${basename(file)}`);
+  return Number(m[1]);
+}
+function writeVoice(src, dst, { leadF, lenF, trailF }, gainDb) {
   const total = (leadF + lenF + trailF) * SAMPLES_PER_F + VOICE_SAFETY_SAMPLES;
   const af = [
-    `aresample=${VOICE_RATE}`, `volume=${VOICE_GAIN_DB}dB`, `atrim=end_sample=${lenF * SAMPLES_PER_F}`,
+    `aresample=${VOICE_RATE}`, `volume=${gainDb.toFixed(2)}dB`, `atrim=end_sample=${lenF * SAMPLES_PER_F}`,
     ...(leadF > 0 ? [`adelay=delays=${leadF * SAMPLES_PER_F}S:all=1`] : []),
     `apad=whole_len=${total}`, `atrim=end_sample=${total}`,
   ].join(',');
   const r = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', src, '-af', af, '-ar', String(VOICE_RATE), '-ac', '1', '-c:a', 'pcm_s16le', dst], { encoding: 'utf8' });
   // 長さがずれた音声を渡すと、詰めて並べたときに後ろのセリフが全部ずれるので、そのままコピーはしない
   if (r.status !== 0 || !existsSync(dst)) throw new Error(`セリフ音声を書き出せませんでした: ${basename(src)} ${r.stderr || ''}`);
+}
+// 声を lenF フレームちょうどに切りそろえ、前に leadF・後ろに trailF フレームの無音を足して書き出す
+function copyVoice(src, dst, pad) {
+  writeVoice(src, dst, pad, VOICE_GAIN_DB);
+  const peak = peakDb(dst);
+  if (peak > VOICE_MAX_PEAK_DB) writeVoice(src, dst, pad, VOICE_GAIN_DB + (VOICE_MAX_PEAK_DB - peak) - 0.2);
 }
 
 // 会話シーン用の暗い背景（立ち絵を乗せる下地）

@@ -67,3 +67,11 @@ export function isWorkerSilent(lockedAt: string | null, now: number): boolean {
   if (!lockedAt) return false;
   return now - new Date(lockedAt).getTime() > HEARTBEAT_MS * HEARTBEAT_MISSES;
 }
+
+/** 作業PCは15秒ごとに依頼を見に来るので、これだけ待っても拾われなければ止まっているか、ほかの依頼を処理中 */
+export const PENDING_WAIT_MS = 3 * 60_000;
+
+/** 待機中の依頼が、作業PCに拾われないまま長く残っているか */
+export function isPendingTooLong(createdAt: string, now: number): boolean {
+  return now - new Date(createdAt).getTime() > PENDING_WAIT_MS;
+}

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createSceneJob } from "@/lib/actions/sceneJobs";
 import type { ActionState } from "@/lib/actions/assignments";
+import { MAX_SCENE_MINUTES } from "@/lib/scene/limits";
 
 const initialState: ActionState = { error: null };
 
@@ -51,11 +52,11 @@ export function CreateSceneJobForm() {
             name="target_minutes"
             type="number"
             min={1}
-            max={15}
+            max={MAX_SCENE_MINUTES}
             defaultValue={6}
             className="mt-1 w-full rounded-xl border-2 border-line p-3"
           />
-          <p className="mt-1 text-xs text-ink-soft">1〜15分（教科書の段3は 1分 → 3分 → 5分）</p>
+          <p className="mt-1 text-xs text-ink-soft">1〜{MAX_SCENE_MINUTES}分（教科書の段3は 1分 → 3分 → 5分）</p>
         </div>
         <div>
           <label htmlFor="difficulty" className="block font-bold text-ink">

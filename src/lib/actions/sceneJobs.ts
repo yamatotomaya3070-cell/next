@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireRole, createClient } from "@/lib/supabase/server";
 import type { ActionState } from "./assignments";
+import { MAX_SCENE_MINUTES } from "@/lib/scene/limits";
 
 /**
  * SCENE動画案件の生成ジョブを「登録」するだけのアクション（pending 行の作成）。
@@ -25,8 +26,8 @@ export async function createSceneJob(
   if (!theme) {
     return { error: "テーマを入力してください。" };
   }
-  if (!Number.isInteger(targetMinutes) || targetMinutes < 1 || targetMinutes > 15) {
-    return { error: "目標の長さは1〜15分（整数）で指定してください。" };
+  if (!Number.isInteger(targetMinutes) || targetMinutes < 1 || targetMinutes > MAX_SCENE_MINUTES) {
+    return { error: `目標の長さは1〜${MAX_SCENE_MINUTES}分（整数）で指定してください。` };
   }
   if (!Number.isFinite(difficulty) || difficulty < 1 || difficulty > 5) {
     return { error: "難易度は1〜5で指定してください。" };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeStepFailure, ERROR_MAX_CHARS, isWorkerSilent, tailLines, type StepFailure } from "./stepFailure";
+import { describeStepFailure, ERROR_MAX_CHARS, isPendingTooLong, isWorkerSilent, PENDING_WAIT_MS, tailLines, type StepFailure } from "./stepFailure";
 
 const base: StepFailure = {
   step: "完成見本の書き出し",
@@ -55,5 +55,18 @@ describe("isWorkerSilent", () => {
   });
   it("is false when the job was never locked", () => {
     expect(isWorkerSilent(null, now)).toBe(false);
+  });
+});
+
+describe("isPendingTooLong", () => {
+  const created = "2026-11-18T00:00:00.000Z";
+  const t0 = new Date(created).getTime();
+
+  it("登録してすぐは、まだ待っているだけ", () => {
+    expect(isPendingTooLong(created, t0 + PENDING_WAIT_MS - 1)).toBe(false);
+  });
+
+  it("決めた時間を過ぎても拾われなければ、知らせる", () => {
+    expect(isPendingTooLong(created, t0 + PENDING_WAIT_MS + 1)).toBe(true);
   });
 });

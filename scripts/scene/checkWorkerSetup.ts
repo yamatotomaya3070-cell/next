@@ -42,12 +42,20 @@ async function httpOk(url: string, headers: Record<string, string> = {}): Promis
   }
 }
 
-async function geminiAnswers(model: string, apiKey: string): Promise<{ ok: boolean; detail: string }> {
+// poc/scene/render_project.mjs と同じ決め方（声を作るモデル）。プレビュー版なので、提供終了に気づけるよう実際に1回呼ぶ
+const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-2.5-flash-preview-tts";
+const TEXT_REQUEST = { contents: [{ parts: [{ text: "はい、とだけ答えてください" }] }] };
+const TTS_REQUEST = {
+  contents: [{ parts: [{ text: "次の文を読み上げてください: こんにちは" }] }],
+  generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } },
+};
+
+async function geminiAnswers(model: string, apiKey: string, request: object = TEXT_REQUEST): Promise<{ ok: boolean; detail: string }> {
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: "はい、とだけ答えてください" }] }] }),
+      body: JSON.stringify(request),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS * 2),
     });
     if (res.ok) return { ok: true, detail: "HTTP 200" };
@@ -110,6 +118,12 @@ async function run(): Promise<Check[]> {
       label: `台本を作るAI（${model}）が答える`,
       ok: said.ok,
       hint: `${said.detail}。「更新（職員用）.bat」を実行してください。直らないときは開発担当に伝えてください`,
+    });
+    const voiced = await geminiAnswers(TTS_MODEL, process.env.GEMINI_API_KEY!, TTS_REQUEST);
+    checks.push({
+      label: `声を作るAI（${TTS_MODEL}）が答える`,
+      ok: voiced.ok,
+      hint: `${voiced.detail}。「更新（職員用）.bat」を実行してください。直らないときは開発担当に伝えてください`,
     });
   }
   return checks;

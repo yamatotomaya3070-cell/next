@@ -150,11 +150,51 @@ async function callGeminiJson(prompt: string): Promise<string> {
       generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
     }),
   });
-  if (!res.ok) throw new Error(`Gemini API エラー (${res.status}): ${(await res.text()).slice(0, 400)}`);
+  if (!res.ok) {
+    throw new GeminiCallError(`Gemini API エラー (${res.status}): ${(await res.text()).slice(0, 400)}`, isRetryableStatus(res.status));
+  }
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini API から空の応答");
+  if (!text) throw new GeminiCallError("Gemini API から空の応答", true);
   return text;
+}
+
+/** retryable=false はキー・モデル名の誤りなど、やり直しても直らない失敗 */
+class GeminiCallError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+  }
+}
+
+// 混雑（429）・サーバー側の不調（5xx）・待ち切れ（408）は、少し待てば通ることが多い
+const isRetryableStatus = (status: number) => status === 408 || status === 429 || status >= 500;
+
+const GEMINI_ATTEMPTS = 3;
+/** 2回目・3回目の前に待つ時間（テストでは GEMINI_RETRY_DELAY_MS=0 で待たない） */
+function retryDelayMs(attempt: number): number {
+  const base = Number(process.env.GEMINI_RETRY_DELAY_MS ?? 5000);
+  return base * 3 ** (attempt - 1);
+}
+
+/**
+ * 台本の設計図を AI に作らせる。通信の切断・混雑・JSON の崩れは一時的なことが多いので、数回やり直す
+ * （11/18、6分の案件で1回だけ ECONNRESET が起き、それだけで案件作成が止まった）
+ */
+async function generateWithRetry(prompt: string): Promise<unknown> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= GEMINI_ATTEMPTS; attempt++) {
+    try {
+      return JSON.parse(await callGeminiJson(prompt));
+    } catch (err) {
+      lastErr = err;
+      if (err instanceof GeminiCallError && !err.retryable) break;
+      if (attempt < GEMINI_ATTEMPTS) {
+        console.warn(`  台本AIの呼び出しに失敗（${attempt}回目）。やり直します: ${err instanceof Error ? err.message : String(err)}`);
+        await new Promise((r) => setTimeout(r, retryDelayMs(attempt)));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 /** テーマから動画設計図を生成。Gemini→失敗/未設定でmockフォールバック。 */
@@ -169,8 +209,7 @@ export async function generateVideoProject(
     };
   }
   try {
-    const raw = await callGeminiJson(buildPrompt(input));
-    const parsed = JSON.parse(raw);
+    const parsed = await generateWithRetry(buildPrompt(input));
     return { project: normalizeVideoProject(parsed, input.theme), provider: "gemini" };
   } catch (err) {
     console.error("Gemini SCENE生成に失敗。モックにフォールバックします:", err);

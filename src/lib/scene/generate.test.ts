@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GEMINI_MODEL } from "../ai/geminiModel";
 import { assertAiGenerated, buildMockVideoProject, generateVideoProject } from "./generate";
+
+beforeEach(() => {
+  vi.stubEnv("GEMINI_RETRY_DELAY_MS", "0");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -38,6 +42,58 @@ describe("generateVideoProject", () => {
     await generateVideoProject({ theme: "住民税について" });
 
     expect(String(fetchMock.mock.calls[0][0])).toContain(`/${DEFAULT_GEMINI_MODEL}:generateContent`);
+  });
+});
+
+describe("generateVideoProject のやり直し", () => {
+  const okResponse = () =>
+    new Response(
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: JSON.stringify(buildMockVideoProject({ theme: "住民税について" })) }] } }],
+      }),
+      { status: 200 },
+    );
+
+  it("通信が切れても、やり直して AI の設計図を返す", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(new Response("overloaded", { status: 503 }))
+      .mockResolvedValueOnce(okResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateVideoProject({ theme: "住民税について" });
+
+    expect(result.provider).toBe("gemini");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("やり直しても直らない失敗（404 など）は、すぐあきらめる", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn(async () => new Response("not found", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateVideoProject({ theme: "住民税について" });
+
+    expect(result.provider).toBe("mock(fallback)");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("3回とも失敗したら、最後の理由を付けて mock を返す", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn(async () => new Response("busy", { status: 429 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateVideoProject({ theme: "住民税について" });
+
+    expect(result.provider).toBe("mock(fallback)");
+    expect(result.mockReason).toContain("429");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
 
